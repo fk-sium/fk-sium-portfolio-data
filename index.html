@@ -366,6 +366,23 @@
             </div>
         );
 
+        const ProfileImage = () => {
+            const { data: profileData } = useGitHubData('profile.json');
+            const profileImage = profileData.find(item => item.type === 'profileImage');
+            
+            if (profileImage?.imageUrl) {
+                return (
+                    <img 
+                        src={profileImage.imageUrl} 
+                        alt="FK Sium" 
+                        className="w-full h-full object-cover"
+                    />
+                );
+            }
+            
+            return <i className="fas fa-user text-6xl text-white/80"></i>;
+        };
+
         const Lightbox = ({ src, onClose }) => {
             if (!src) return null;
             
@@ -390,6 +407,8 @@
                 { href: '#about', label: 'About' },
                 { href: '#achievements', label: 'Achievements' },
                 { href: '#projects', label: 'Projects' },
+                { href: '#content', label: 'Content' },
+                { href: '#jobs', label: 'Experience' },
                 { href: '#designs', label: 'Designs' },
                 { href: '#certificates', label: 'Certificates' },
                 { href: '#contact', label: 'Contact' }
@@ -466,8 +485,8 @@
                 <section id="hero" className="min-h-screen flex items-center gradient-bg">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
                         <div className="fade-in">
-                            <div className="w-48 h-48 mx-auto mb-8 rounded-full bg-white/20 flex items-center justify-center">
-                                <i className="fas fa-user text-6xl text-white/80"></i>
+                            <div className="w-48 h-48 mx-auto mb-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">
+                                <ProfileImage />
                             </div>
                             <h1 className="text-5xl md:text-7xl font-bold mb-6">FK Sium</h1>
                             <p className="text-xl md:text-2xl mb-8 text-white/90">Student • Leader • Creator</p>
@@ -1001,6 +1020,316 @@
             );
         };
 
+        const ProfileSettings = () => {
+            const [uploading, setUploading] = useState(false);
+            const { data: profileData, refetch } = useGitHubData('profile.json');
+            const currentProfile = profileData.find(item => item.type === 'profileImage') || {};
+
+            const handleImageUpload = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                setUploading(true);
+                try {
+                    let imageUrl = '';
+                    
+                    if (isGitHubConfigured()) {
+                        imageUrl = await uploadImage(file, 'profile');
+                    } else {
+                        const base64 = await fileToBase64(file);
+                        imageUrl = `data:${file.type};base64,${base64}`;
+                    }
+
+                    const profileItem = {
+                        id: currentProfile.id || 'profile-image',
+                        type: 'profileImage',
+                        title: 'Profile Picture',
+                        imageUrl,
+                        updatedAt: new Date().toISOString()
+                    };
+
+                    const filename = 'profile.json';
+                    let items = [];
+
+                    if (isGitHubConfigured()) {
+                        const { content, sha } = await getFileContent(filename);
+                        items = content ? JSON.parse(content) : [];
+                        const existingIndex = items.findIndex(item => item.type === 'profileImage');
+                        
+                        if (existingIndex !== -1) {
+                            items[existingIndex] = profileItem;
+                        } else {
+                            items.push(profileItem);
+                        }
+                        
+                        await saveFileContent(filename, JSON.stringify(items, null, 2), sha);
+                    } else {
+                        const localData = localStorage.getItem(`fk_sium_${filename}`);
+                        items = localData ? JSON.parse(localData) : [];
+                        const existingIndex = items.findIndex(item => item.type === 'profileImage');
+                        
+                        if (existingIndex !== -1) {
+                            items[existingIndex] = profileItem;
+                        } else {
+                            items.push(profileItem);
+                        }
+                        
+                        localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(items));
+                    }
+
+                    alert('Profile picture updated successfully!');
+                    refetch();
+                } catch (error) {
+                    alert('Error uploading image: ' + error.message);
+                } finally {
+                    setUploading(false);
+                }
+            };
+
+            return (
+                <div>
+                    <h2 className="text-2xl font-bold mb-6">Profile Settings</h2>
+                    
+                    <div className="bg-white p-6 rounded-lg shadow">
+                        <h3 className="text-lg font-semibold mb-4">Profile Picture</h3>
+                        
+                        <div className="flex items-center space-x-6">
+                            <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                                {currentProfile.imageUrl ? (
+                                    <img 
+                                        src={currentProfile.imageUrl} 
+                                        alt="Profile" 
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <i className="fas fa-user text-4xl text-gray-400"></i>
+                                )}
+                            </div>
+                            
+                            <div>
+                                <label className="block">
+                                    <span className="sr-only">Choose profile picture</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                        disabled={uploading}
+                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                    />
+                                </label>
+                                {uploading && (
+                                    <p className="text-sm text-blue-600 mt-2">
+                                        <i className="fas fa-spinner fa-spin mr-2"></i>
+                                        Uploading...
+                                    </p>
+                                )}
+                                <p className="text-sm text-gray-500 mt-2">
+                                    Upload a square image for best results. Recommended size: 400x400px
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const SectionSettings = () => {
+            const [sectionSettings, setSectionSettings] = useState({
+                about: { visible: true, title: 'About' },
+                achievements: { visible: true, title: 'Achievements' },
+                projects: { visible: true, title: 'Projects' },
+                content: { visible: true, title: 'Content & Articles' },
+                jobs: { visible: true, title: 'Experience' },
+                designs: { visible: true, title: 'Design Portfolio' },
+                certificates: { visible: true, title: 'Certificates & Training' },
+                contact: { visible: true, title: 'Contact' }
+            });
+            const [saving, setSaving] = useState(false);
+
+            useEffect(() => {
+                // Load section settings from storage
+                const loadSettings = async () => {
+                    try {
+                        if (isGitHubConfigured()) {
+                            const { content } = await getFileContent('sections.json');
+                            if (content) {
+                                setSectionSettings({ ...sectionSettings, ...JSON.parse(content) });
+                            }
+                        } else {
+                            const localData = localStorage.getItem('fk_sium_sections.json');
+                            if (localData) {
+                                setSectionSettings({ ...sectionSettings, ...JSON.parse(localData) });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading section settings:', error);
+                    }
+                };
+                loadSettings();
+            }, []);
+
+            const handleSave = async () => {
+                setSaving(true);
+                try {
+                    const filename = 'sections.json';
+                    
+                    if (isGitHubConfigured()) {
+                        const { sha } = await getFileContent(filename);
+                        await saveFileContent(filename, JSON.stringify(sectionSettings, null, 2), sha);
+                    } else {
+                        localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(sectionSettings));
+                    }
+                    
+                    alert('Section settings saved successfully!');
+                } catch (error) {
+                    alert('Error saving settings: ' + error.message);
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const updateSection = (sectionName, field, value) => {
+                setSectionSettings(prev => ({
+                    ...prev,
+                    [sectionName]: {
+                        ...prev[sectionName],
+                        [field]: value
+                    }
+                }));
+            };
+
+            const addNewSection = () => {
+                const nameInput = document.getElementById('newSectionName');
+                const titleInput = document.getElementById('newSectionTitle');
+                
+                const sectionName = nameInput.value.toLowerCase().replace(/\s+/g, '');
+                const sectionTitle = titleInput.value.trim();
+                
+                if (!sectionName || !sectionTitle) {
+                    alert('Please enter both section name and title');
+                    return;
+                }
+                
+                if (sectionSettings[sectionName]) {
+                    alert('Section already exists');
+                    return;
+                }
+                
+                setSectionSettings(prev => ({
+                    ...prev,
+                    [sectionName]: {
+                        visible: true,
+                        title: sectionTitle
+                    }
+                }));
+                
+                nameInput.value = '';
+                titleInput.value = '';
+            };
+
+            const removeSection = (sectionName) => {
+                if (!confirm(`Are you sure you want to remove the "${sectionName}" section?`)) {
+                    return;
+                }
+                
+                setSectionSettings(prev => {
+                    const newSettings = { ...prev };
+                    delete newSettings[sectionName];
+                    return newSettings;
+                });
+            };
+
+            return (
+                <div>
+                    <h2 className="text-2xl font-bold mb-6">Section Settings</h2>
+                    
+                    <div className="bg-white p-6 rounded-lg shadow">
+                        <p className="text-gray-600 mb-6">
+                            Control which sections appear on your portfolio and customize their titles.
+                        </p>
+                        
+                        <div className="space-y-4">
+                            {Object.entries(sectionSettings).map(([sectionName, settings]) => (
+                                <div key={sectionName} className="flex items-center justify-between p-4 border rounded-lg">
+                                    <div className="flex items-center space-x-4">
+                                        <label className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={settings.visible}
+                                                onChange={(e) => updateSection(sectionName, 'visible', e.target.checked)}
+                                                className="mr-2"
+                                            />
+                                            <span className="font-medium capitalize">{sectionName}</span>
+                                        </label>
+                                    </div>
+                                    
+                                    <div className="flex items-center space-x-4">
+                                        <input
+                                            type="text"
+                                            value={settings.title}
+                                            onChange={(e) => updateSection(sectionName, 'title', e.target.value)}
+                                            className="px-3 py-1 border rounded"
+                                            placeholder="Section Title"
+                                        />
+                                        <span className={`px-2 py-1 rounded text-sm ${settings.visible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            {settings.visible ? 'Visible' : 'Hidden'}
+                                        </span>
+                                        {!['about', 'contact'].includes(sectionName) && (
+                                            <button
+                                                onClick={() => removeSection(sectionName)}
+                                                className="text-red-600 hover:text-red-800 px-2 py-1"
+                                                title="Remove Section"
+                                            >
+                                                <i className="fas fa-trash"></i>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {/* Add New Section */}
+                        <div className="mt-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
+                            <h4 className="font-medium mb-4">Add New Section</h4>
+                            <div className="flex space-x-4">
+                                <input
+                                    type="text"
+                                    placeholder="Section Name (e.g., skills, education)"
+                                    className="flex-1 px-3 py-2 border rounded"
+                                    id="newSectionName"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Display Title (e.g., Skills & Expertise)"
+                                    className="flex-1 px-3 py-2 border rounded"
+                                    id="newSectionTitle"
+                                />
+                                <button
+                                    onClick={addNewSection}
+                                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                                >
+                                    <i className="fas fa-plus mr-2"></i>Add Section
+                                </button>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-2">
+                                Create custom sections for your portfolio. Section names should be lowercase with no spaces.
+                            </p>
+                        </div>
+                        
+                        <div className="mt-6">
+                            <button
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {saving ? 'Saving...' : 'Save Settings'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const AdminForm = ({ type, editingItem, onSubmit, onCancel }) => {
             const [formData, setFormData] = useState({
                 title: editingItem?.title || '',
@@ -1189,12 +1518,68 @@
             const [activeView, setActiveView] = useState('dashboard');
             const [editingItem, setEditingItem] = useState(null);
 
+            const [sectionSettings, setSectionSettings] = useState({
+                about: { visible: true, title: 'About' },
+                achievements: { visible: true, title: 'Achievements' },
+                projects: { visible: true, title: 'Projects' },
+                content: { visible: true, title: 'Content & Articles' },
+                jobs: { visible: true, title: 'Experience' },
+                designs: { visible: true, title: 'Design Portfolio' },
+                certificates: { visible: true, title: 'Certificates & Training' },
+                contact: { visible: true, title: 'Contact' }
+            });
+
             const collections = [
                 { name: 'achievements', label: 'Achievements', icon: 'fa-trophy' },
                 { name: 'projects', label: 'Projects', icon: 'fa-project-diagram' },
+                { name: 'content', label: 'Content', icon: 'fa-newspaper' },
+                { name: 'jobs', label: 'Experience', icon: 'fa-briefcase' },
                 { name: 'designs', label: 'Designs', icon: 'fa-palette' },
                 { name: 'certificates', label: 'Certificates', icon: 'fa-certificate' }
             ];
+
+            // Load section settings
+            useEffect(() => {
+                const loadSectionSettings = async () => {
+                    try {
+                        if (isGitHubConfigured()) {
+                            const { content } = await getFileContent('sections.json');
+                            if (content) {
+                                setSectionSettings(prev => ({ ...prev, ...JSON.parse(content) }));
+                            }
+                        } else {
+                            const localData = localStorage.getItem('fk_sium_sections.json');
+                            if (localData) {
+                                setSectionSettings(prev => ({ ...prev, ...JSON.parse(localData) }));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading section settings:', error);
+                    }
+                };
+                loadSectionSettings();
+            }, []);
+
+            // Get dynamic collections based on section settings
+            const getDynamicCollections = () => {
+                const dynamicCollections = [];
+                Object.entries(sectionSettings).forEach(([sectionName, settings]) => {
+                    if (!['about', 'contact'].includes(sectionName)) {
+                        const existingCollection = collections.find(c => c.name === sectionName);
+                        if (existingCollection) {
+                            dynamicCollections.push(existingCollection);
+                        } else {
+                            // Custom section
+                            dynamicCollections.push({
+                                name: sectionName,
+                                label: settings.title,
+                                icon: 'fa-star'
+                            });
+                        }
+                    }
+                });
+                return dynamicCollections;
+            };
 
             const handleFormSubmit = () => {
                 setActiveForm(null);
@@ -1235,7 +1620,20 @@
                                 >
                                     <i className="fas fa-tachometer-alt mr-3"></i>Dashboard
                                 </button>
-                                {collections.map((collection) => (
+                                <button
+                                    onClick={() => setActiveView('profile')}
+                                    className={`w-full text-left p-3 rounded mb-2 ${activeView === 'profile' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
+                                >
+                                    <i className="fas fa-user-circle mr-3"></i>Profile Settings
+                                </button>
+                                <button
+                                    onClick={() => setActiveView('sections')}
+                                    className={`w-full text-left p-3 rounded mb-2 ${activeView === 'sections' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
+                                >
+                                    <i className="fas fa-cog mr-3"></i>Section Settings
+                                </button>
+                                <hr className="my-4" />
+                                {getDynamicCollections().map((collection) => (
                                     <button
                                         key={collection.name}
                                         onClick={() => setActiveView(collection.name)}
@@ -1253,8 +1651,8 @@
                             {activeView === 'dashboard' ? (
                                 <div>
                                     <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
-                                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                                        {collections.map((collection) => (
+                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                                        {getDynamicCollections().map((collection) => (
                                             <button
                                                 key={collection.name}
                                                 onClick={() => setActiveForm(collection.name)}
@@ -1306,6 +1704,10 @@
                                         )}
                                     </div>
                                 </div>
+                            ) : activeView === 'profile' ? (
+                                <ProfileSettings />
+                            ) : activeView === 'sections' ? (
+                                <SectionSettings />
                             ) : (
                                 <ContentManager 
                                     type={activeView} 
@@ -1381,6 +1783,47 @@
                     category: 'Innovation Project',
                     description: 'Innovative biotechnology project focused on environmental solutions and sustainable development.',
                     date: '2023-06-15'
+                }
+            ];
+
+            const defaultContent = [
+                {
+                    id: '1',
+                    title: 'Digital Journalism in Modern Bangladesh',
+                    category: 'Journalism',
+                    description: 'Exploring the evolution of digital media and its impact on contemporary journalism practices in Bangladesh.',
+                    date: '2023-08-15'
+                },
+                {
+                    id: '2',
+                    title: 'Youth Leadership in Community Development',
+                    category: 'Leadership',
+                    description: 'Analysis of how young leaders can drive meaningful change in their communities through innovative approaches.',
+                    date: '2023-09-10'
+                }
+            ];
+
+            const defaultJobs = [
+                {
+                    id: '1',
+                    title: 'Correspondent',
+                    category: 'NTV Online',
+                    description: 'Reporting on local news, conducting interviews, and creating digital content for one of Bangladesh\'s leading news platforms.',
+                    date: '2023-01-01'
+                },
+                {
+                    id: '2',
+                    title: 'Correspondent',
+                    category: 'Kaler Kantho',
+                    description: 'Contributing journalist covering community events, social issues, and educational developments.',
+                    date: '2023-03-01'
+                },
+                {
+                    id: '3',
+                    title: 'Student Leader',
+                    category: 'Various Organizations',
+                    description: 'Leading student initiatives, organizing events, and representing student interests in multiple educational and social organizations.',
+                    date: '2022-09-01'
                 }
             ];
 
@@ -1491,6 +1934,20 @@
                         icon="fa-project-diagram"
                         defaultData={defaultProjects}
                     />
+                    <ContentSection 
+                        id="content" 
+                        title="Content & Articles" 
+                        filename="content.json" 
+                        icon="fa-newspaper"
+                        defaultData={defaultContent}
+                    />
+                    <ContentSection 
+                        id="jobs" 
+                        title="Experience" 
+                        filename="jobs.json" 
+                        icon="fa-briefcase"
+                        defaultData={defaultJobs}
+                    />
                     <DesignPortfolio />
                     <ContentSection 
                         id="certificates" 
@@ -1520,5 +1977,5 @@
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f287e4755281d8',t:'MTc1NTE5NjMwNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f2b1a5012b81d8',t:'MTc1NTE5ODAxNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
