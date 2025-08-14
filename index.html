@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FK Sium - Portfolio</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .smooth-scroll {
+            scroll-behavior: smooth;
+        }
+        
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s ease;
+        }
+        
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .hover-scale {
+            transition: transform 0.3s ease;
+        }
+        
+        .hover-scale:hover {
+            transform: scale(1.05);
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .lightbox img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+        
+        .github-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // GitHub Configuration
+        const GITHUB_CONFIG = {
+            username: 'your-github-username', // Replace with your GitHub username
+            repo: 'fk-sium-portfolio-data', // Replace with your data repository name
+            branch: 'main',
+            token: 'your-github-token' // Replace with your GitHub Personal Access Token
+        };
+
+        // Admin Configuration
+        const ADMIN_CONFIG = {
+            email: 'fazlulkarim.sium@gmail.com', // Replace with admin email
+            password: 'your-secure-password' // Replace with admin password
+        };
+
+        // GitHub API Base URL
+        const GITHUB_API = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/contents`;
+
+        // React Hooks
+        const { useState, useEffect, useRef } = React;
+
+        // GitHub API Helper Functions
+        const githubRequest = async (path, method = 'GET', data = null) => {
+            const url = `${GITHUB_API}/${path}`;
+            const options = {
+                method,
+                headers: {
+                    'Authorization': `token ${GITHUB_CONFIG.token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error(`GitHub API error: ${response.statusText}`);
+            }
+            return response.json();
+        };
+
+        const getFileContent = async (filename) => {
+            try {
+                const response = await githubRequest(filename);
+                const content = atob(response.content);
+                return { content, sha: response.sha };
+            } catch (error) {
+                if (error.message.includes('404')) {
+                    return { content: null, sha: null };
+                }
+                throw error;
+            }
+        };
+
+        const saveFileContent = async (filename, content, sha = null) => {
+            const data = {
+                message: `Update ${filename}`,
+                content: btoa(content),
+                branch: GITHUB_CONFIG.branch
+            };
+
+            if (sha) {
+                data.sha = sha;
+            }
+
+            return await githubRequest(filename, 'PUT', data);
+        };
+
+        const uploadImage = async (file, folder = 'images') => {
+            const fileName = `${folder}/${Date.now()}_${file.name}`;
+            const base64 = await fileToBase64(file);
+            
+            await saveFileContent(fileName, base64);
+            return `https://raw.githubusercontent.com/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${fileName}`;
+        };
+
+        const fileToBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        };
+
+        // Custom Hooks
+        const useAuth = () => {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(false);
+
+            const login = (email, password) => {
+                if (email === ADMIN_CONFIG.email && password === ADMIN_CONFIG.password) {
+                    const userData = { email, isAdmin: true };
+                    setUser(userData);
+                    localStorage.setItem('fk_sium_admin', JSON.stringify(userData));
+                    return true;
+                }
+                return false;
+            };
+
+            const logout = () => {
+                setUser(null);
+                localStorage.removeItem('fk_sium_admin');
+            };
+
+            useEffect(() => {
+                const savedUser = localStorage.getItem('fk_sium_admin');
+                if (savedUser) {
+                    setUser(JSON.parse(savedUser));
+                }
+            }, []);
+
+            return { user, loading, login, logout };
+        };
+
+        const useGitHubData = (filename) => {
+            const [data, setData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+
+            const fetchData = async () => {
+                try {
+                    setLoading(true);
+                    const { content } = await getFileContent(filename);
+                    if (content) {
+                        const parsedData = JSON.parse(content);
+                        setData(Array.isArray(parsedData) ? parsedData : []);
+                    } else {
+                        setData([]);
+                    }
+                    setError(null);
+                } catch (err) {
+                    console.error(`Error fetching ${filename}:`, err);
+                    setError(err.message);
+                    setData([]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchData();
+            }, [filename]);
+
+            return { data, loading, error, refetch: fetchData };
+        };
+
+        // Components
+        const LoadingSpinner = () => (
+            <div className="flex justify-center items-center p-8">
+                <div className="loading-spinner"></div>
+            </div>
+        );
+
+        const Lightbox = ({ src, onClose }) => {
+            if (!src) return null;
+            
+            return (
+                <div className="lightbox" onClick={onClose}>
+                    <img src={src} alt="Lightbox" onClick={(e) => e.stopPropagation()} />
+                    <button 
+                        className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300"
+                        onClick={onClose}
+                    >
+                        ×
+                    </button>
+                </div>
+            );
+        };
+
+        const Navigation = ({ user, onAdminClick }) => {
+            const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+            const navItems = [
+                { href: '#hero', label: 'Home' },
+                { href: '#about', label: 'About' },
+                { href: '#achievements', label: 'Achievements' },
+                { href: '#projects', label: 'Projects' },
+                { href: '#designs', label: 'Designs' },
+                { href: '#certificates', label: 'Certificates' },
+                { href: '#contact', label: 'Contact' }
+            ];
+
+            const scrollToSection = (href) => {
+                const element = document.querySelector(href);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                }
+                setMobileMenuOpen(false);
+            };
+
+            return (
+                <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-md z-50 shadow-sm">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex justify-between items-center py-4">
+                            <div className="text-2xl font-bold text-gray-900">FK Sium</div>
+                            
+                            {/* Desktop Navigation */}
+                            <div className="hidden md:flex space-x-8">
+                                {navItems.map((item) => (
+                                    <button
+                                        key={item.href}
+                                        onClick={() => scrollToSection(item.href)}
+                                        className="text-gray-700 hover:text-blue-600 transition-colors"
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="flex items-center space-x-4">
+                                <button
+                                    onClick={onAdminClick}
+                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    {user?.isAdmin ? 'Admin Panel' : 'Admin'}
+                                </button>
+                                
+                                {/* Mobile Menu Button */}
+                                <button
+                                    className="md:hidden text-gray-700"
+                                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                                >
+                                    <i className="fas fa-bars text-xl"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Mobile Menu */}
+                        {mobileMenuOpen && (
+                            <div className="md:hidden bg-white border-t">
+                                <div className="px-4 py-2 space-y-2">
+                                    {navItems.map((item) => (
+                                        <button
+                                            key={item.href}
+                                            onClick={() => scrollToSection(item.href)}
+                                            className="block w-full text-left py-2 text-gray-700 hover:text-blue-600"
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </nav>
+            );
+        };
+
+        const Hero = () => {
+            return (
+                <section id="hero" className="min-h-screen flex items-center gradient-bg">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+                        <div className="fade-in">
+                            <div className="w-48 h-48 mx-auto mb-8 rounded-full bg-white/20 flex items-center justify-center">
+                                <i className="fas fa-user text-6xl text-white/80"></i>
+                            </div>
+                            <h1 className="text-5xl md:text-7xl font-bold mb-6">FK Sium</h1>
+                            <p className="text-xl md:text-2xl mb-8 text-white/90">Student • Leader • Creator</p>
+                            <p className="text-lg md:text-xl max-w-3xl mx-auto mb-12 text-white/80">
+                                Dedicated student and leader from Bangladesh with extensive experience in academics, 
+                                leadership, journalism, and creative work. Champion in mathematics olympiads and 
+                                passionate about community development.
+                            </p>
+                            <div className="space-x-4">
+                                <button
+                                    onClick={() => document.querySelector('#about').scrollIntoView({ behavior: 'smooth' })}
+                                    className="inline-block bg-white text-blue-600 px-8 py-4 rounded-full font-semibold hover:bg-gray-100 transition-colors"
+                                >
+                                    Learn More About Me
+                                </button>
+                                <button
+                                    onClick={() => document.querySelector('#contact').scrollIntoView({ behavior: 'smooth' })}
+                                    className="inline-block bg-transparent border-2 border-white text-white px-8 py-4 rounded-full font-semibold hover:bg-white hover:text-blue-600 transition-colors"
+                                >
+                                    Get In Touch
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        };
+
+        const About = () => {
+            return (
+                <section id="about" className="py-20 bg-white">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="text-center mb-16 fade-in">
+                            <h2 className="text-4xl font-bold text-gray-900 mb-4">About FK Sium</h2>
+                            <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 gap-12 items-center">
+                            <div className="fade-in">
+                                <h3 className="text-2xl font-semibold mb-6 text-gray-900">My Journey</h3>
+                                <p className="text-gray-600 mb-6 leading-relaxed">
+                                    I am Md. Fazlul Karim Sium, a passionate student and leader from Bangladesh, 
+                                    committed to excellence in academics and making meaningful contributions to my community. 
+                                    With a strong foundation in mathematics and science, I've consistently achieved top academic results.
+                                </p>
+                                <p className="text-gray-600 mb-6 leading-relaxed">
+                                    My journey includes championship victories in mathematics olympiads, leadership roles 
+                                    in various organizations, and extensive work in journalism and community development. 
+                                    I believe in the power of education and leadership to create positive change.
+                                </p>
+                                <div className="space-y-4">
+                                    <div className="flex items-center">
+                                        <i className="fas fa-graduation-cap text-blue-600 mr-3"></i>
+                                        <span className="text-gray-700">GPA 5.0 in both SSC & HSC</span>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <i className="fas fa-language text-blue-600 mr-3"></i>
+                                        <span className="text-gray-700">IELTS Band 7</span>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <i className="fas fa-map-marker-alt text-blue-600 mr-3"></i>
+                                        <span className="text-gray-700">Chattogram, Bangladesh</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="fade-in">
+                                <h3 className="text-2xl font-semibold mb-6 text-gray-900">Leadership & Skills</h3>
+                                <div className="space-y-4">
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <h4 className="font-semibold text-gray-900">Academic Excellence</h4>
+                                        <p className="text-gray-600">Mathematics Olympiad Champion, consistent top performer</p>
+                                    </div>
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <h4 className="font-semibold text-gray-900">Leadership</h4>
+                                        <p className="text-gray-600">Multiple leadership roles in student organizations</p>
+                                    </div>
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <h4 className="font-semibold text-gray-900">Journalism</h4>
+                                        <p className="text-gray-600">Correspondent for NTV Online & Kaler Kantho</p>
+                                    </div>
+                                    <div className="bg-gray-50 p-4 rounded-lg">
+                                        <h4 className="font-semibold text-gray-900">Community Work</h4>
+                                        <p className="text-gray-600">Active in various social and cultural initiatives</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        };
+
+        const ContentCard = ({ item, onImageClick, showImage = true }) => {
+            return (
+                <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow hover-scale">
+                    {showImage && item.imageUrl && (
+                        <div className="mb-4">
+                            <img
+                                src={item.imageUrl}
+                                alt={item.title}
+                                className="w-full h-48 object-cover rounded-lg cursor-pointer"
+                                onClick={() => onImageClick(item.imageUrl)}
+                            />
+                        </div>
+                    )}
+                    <div className="text-center">
+                        <i className={`fas ${item.icon || 'fa-star'} text-4xl text-blue-600 mb-4`}></i>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-2">{item.title}</h3>
+                        {item.category && (
+                            <p className="text-blue-600 mb-3">{item.category}</p>
+                        )}
+                        <p className="text-gray-600">{item.description}</p>
+                        {item.date && (
+                            <p className="text-sm text-gray-500 mt-2">{new Date(item.date).toLocaleDateString()}</p>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const ContentSection = ({ id, title, filename, icon = 'fa-star', defaultData = [] }) => {
+            const { data, loading, error } = useGitHubData(filename);
+            const [lightboxImage, setLightboxImage] = useState(null);
+
+            // Use default data if no data is loaded and no error
+            const displayData = data.length > 0 ? data : (error ? [] : defaultData);
+
+            if (loading) return <LoadingSpinner />;
+
+            return (
+                <section id={id} className="py-20 bg-gray-50">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="text-center mb-16 fade-in">
+                            <h2 className="text-4xl font-bold text-gray-900 mb-4">{title}</h2>
+                            <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {displayData.map((item, index) => (
+                                <ContentCard
+                                    key={item.id || index}
+                                    item={{ ...item, icon }}
+                                    onImageClick={setLightboxImage}
+                                />
+                            ))}
+                        </div>
+                        
+                        {displayData.length === 0 && (
+                            <div className="text-center text-gray-500">
+                                <p>No {title.toLowerCase()} available at the moment.</p>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <Lightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />
+                </section>
+            );
+        };
+
+        const DesignPortfolio = () => {
+            const { data, loading, error } = useGitHubData('designs.json');
+            const [lightboxImage, setLightboxImage] = useState(null);
+
+            if (loading) return <LoadingSpinner />;
+
+            return (
+                <section id="designs" className="py-20 bg-white">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="text-center mb-16 fade-in">
+                            <h2 className="text-4xl font-bold text-gray-900 mb-4">Design Portfolio</h2>
+                            <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {data.map((design, index) => (
+                                <div
+                                    key={design.id || index}
+                                    className="aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity hover-scale"
+                                    onClick={() => setLightboxImage(design.imageUrl)}
+                                >
+                                    <img
+                                        src={design.imageUrl}
+                                        alt={design.title}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {data.length === 0 && (
+                            <div className="text-center text-gray-500">
+                                <p>No designs available at the moment.</p>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <Lightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />
+                </section>
+            );
+        };
+
+        const Contact = () => {
+            const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+            const [sending, setSending] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSending(true);
+                
+                // Simulate form submission
+                setTimeout(() => {
+                    alert(`Thank you ${formData.name}! Your message has been received. I'll get back to you soon.`);
+                    setFormData({ name: '', email: '', message: '' });
+                    setSending(false);
+                }, 1000);
+            };
+
+            const handleChange = (e) => {
+                setFormData({ ...formData, [e.target.name]: e.target.value });
+            };
+
+            return (
+                <section id="contact" className="py-20 bg-gray-900 text-white">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="text-center mb-16 fade-in">
+                            <h2 className="text-4xl font-bold mb-4">Get In Touch</h2>
+                            <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 gap-12">
+                            <div className="fade-in">
+                                <h3 className="text-2xl font-semibold mb-6">Contact Information</h3>
+                                <div className="space-y-4">
+                                    <div className="flex items-center">
+                                        <i className="fas fa-envelope text-blue-400 mr-4"></i>
+                                        <span>fazlulkarim.sium@gmail.com</span>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <i className="fas fa-map-marker-alt text-blue-400 mr-4"></i>
+                                        <span>Chattogram, Bangladesh</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="mt-8">
+                                    <h4 className="text-lg font-semibold mb-4">Connect With Me</h4>
+                                    <div className="flex space-x-4">
+                                        <a href="#" className="text-blue-400 hover:text-blue-300 text-2xl transition-colors">
+                                            <i className="fab fa-linkedin"></i>
+                                        </a>
+                                        <a href="#" className="text-blue-400 hover:text-blue-300 text-2xl transition-colors">
+                                            <i className="fab fa-facebook"></i>
+                                        </a>
+                                        <a href="#" className="text-blue-400 hover:text-blue-300 text-2xl transition-colors">
+                                            <i className="fab fa-twitter"></i>
+                                        </a>
+                                        <a href="#" className="text-blue-400 hover:text-blue-300 text-2xl transition-colors">
+                                            <i className="fab fa-instagram"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="fade-in">
+                                <form onSubmit={handleSubmit} className="space-y-6">
+                                    <div>
+                                        <input
+                                            type="text"
+                                            name="name"
+                                            value={formData.name}
+                                            onChange={handleChange}
+                                            placeholder="Your Name"
+                                            required
+                                            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value={formData.email}
+                                            onChange={handleChange}
+                                            placeholder="Your Email"
+                                            required
+                                            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <textarea
+                                            name="message"
+                                            value={formData.message}
+                                            onChange={handleChange}
+                                            rows="5"
+                                            placeholder="Your Message"
+                                            required
+                                            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white resize-none"
+                                        ></textarea>
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={sending}
+                                        className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50"
+                                    >
+                                        {sending ? 'Sending...' : 'Send Message'}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        };
+
+        const AdminLogin = ({ onLogin, onCancel }) => {
+            const [credentials, setCredentials] = useState({ email: '', password: '' });
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                
+                setTimeout(() => {
+                    const success = onLogin(credentials.email, credentials.password);
+                    if (!success) {
+                        alert('Invalid credentials');
+                    }
+                    setLoading(false);
+                }, 500);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+                        <h2 className="text-2xl font-bold text-center mb-6">Admin Login</h2>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <input
+                                    type="email"
+                                    placeholder="Email"
+                                    value={credentials.email}
+                                    onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+                                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500"
+                                    required
+                                />
+                            </div>
+                            <div className="mb-6">
+                                <input
+                                    type="password"
+                                    placeholder="Password"
+                                    value={credentials.password}
+                                    onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500"
+                                    required
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 mb-4"
+                            >
+                                {loading ? 'Logging in...' : 'Login'}
+                            </button>
+                        </form>
+                        <button
+                            onClick={onCancel}
+                            className="w-full bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminForm = ({ type, onSubmit, onCancel }) => {
+            const [formData, setFormData] = useState({
+                title: '',
+                category: '',
+                description: '',
+                date: new Date().toISOString().split('T')[0]
+            });
+            const [image, setImage] = useState(null);
+            const [uploading, setUploading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setUploading(true);
+
+                try {
+                    let imageUrl = '';
+                    
+                    if (image) {
+                        imageUrl = await uploadImage(image, type);
+                    }
+
+                    const newItem = {
+                        id: Date.now().toString(),
+                        ...formData,
+                        imageUrl,
+                        createdAt: new Date().toISOString()
+                    };
+
+                    // Get existing data
+                    const filename = `${type}.json`;
+                    const { content, sha } = await getFileContent(filename);
+                    let items = content ? JSON.parse(content) : [];
+                    
+                    // Add new item
+                    items.unshift(newItem);
+                    
+                    // Save back to GitHub
+                    await saveFileContent(filename, JSON.stringify(items, null, 2), sha);
+
+                    alert(`${type.slice(0, -1)} added successfully!`);
+                    onSubmit();
+                } catch (error) {
+                    alert('Error adding item: ' + error.message);
+                } finally {
+                    setUploading(false);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-8 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-xl font-semibold mb-4">Add New {type.slice(0, -1)}</h3>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input
+                                type="text"
+                                placeholder="Title"
+                                value={formData.title}
+                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                className="w-full px-4 py-2 border rounded"
+                                required
+                            />
+                            <input
+                                type="text"
+                                placeholder="Category"
+                                value={formData.category}
+                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                className="w-full px-4 py-2 border rounded"
+                            />
+                            <textarea
+                                placeholder="Description"
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                className="w-full px-4 py-2 border rounded h-24"
+                                required
+                            />
+                            <input
+                                type="date"
+                                value={formData.date}
+                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                className="w-full px-4 py-2 border rounded"
+                            />
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setImage(e.target.files[0])}
+                                className="w-full px-4 py-2 border rounded"
+                            />
+                            <div className="flex space-x-4">
+                                <button
+                                    type="submit"
+                                    disabled={uploading}
+                                    className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {uploading ? 'Adding...' : 'Add Item'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onCancel}
+                                    className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminPanel = ({ onClose, onLogout }) => {
+            const [activeForm, setActiveForm] = useState(null);
+
+            const collections = [
+                { name: 'achievements', label: 'Achievements', icon: 'fa-trophy' },
+                { name: 'projects', label: 'Projects', icon: 'fa-project-diagram' },
+                { name: 'designs', label: 'Designs', icon: 'fa-palette' },
+                { name: 'certificates', label: 'Certificates', icon: 'fa-certificate' }
+            ];
+
+            const handleFormSubmit = () => {
+                setActiveForm(null);
+                // Trigger a page reload to refresh data
+                window.location.reload();
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100">
+                    <nav className="bg-white shadow-sm p-4">
+                        <div className="flex justify-between items-center">
+                            <h1 className="text-2xl font-bold">FK Sium - Admin Panel</h1>
+                            <div className="space-x-4">
+                                <button
+                                    onClick={onClose}
+                                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                                >
+                                    View Site
+                                </button>
+                                <button
+                                    onClick={onLogout}
+                                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                                >
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <div className="p-6">
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {collections.map((collection) => (
+                                <button
+                                    key={collection.name}
+                                    onClick={() => setActiveForm(collection.name)}
+                                    className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow text-center"
+                                >
+                                    <i className={`fas ${collection.icon} text-3xl text-blue-600 mb-4`}></i>
+                                    <h3 className="text-lg font-semibold">Add {collection.label}</h3>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="mt-8 bg-white p-6 rounded-lg shadow">
+                            <h3 className="text-lg font-semibold mb-4">GitHub Repository Structure</h3>
+                            <div className="bg-gray-100 p-4 rounded font-mono text-sm">
+                                <div>📁 {GITHUB_CONFIG.repo}/</div>
+                                <div>├── achievements.json</div>
+                                <div>├── projects.json</div>
+                                <div>├── designs.json</div>
+                                <div>├── certificates.json</div>
+                                <div>└── 📁 images/</div>
+                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── achievements/</div>
+                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── projects/</div>
+                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── designs/</div>
+                                <div>&nbsp;&nbsp;&nbsp;&nbsp;└── certificates/</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {activeForm && (
+                        <AdminForm
+                            type={activeForm}
+                            onSubmit={handleFormSubmit}
+                            onCancel={() => setActiveForm(null)}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const { user, login, logout } = useAuth();
+            const [showAdmin, setShowAdmin] = useState(false);
+            const [showLogin, setShowLogin] = useState(false);
+
+            // Default data for when GitHub files don't exist yet
+            const defaultAchievements = [
+                {
+                    id: '1',
+                    title: 'Champion - Bangladesh Mathematical Olympiad',
+                    category: 'Regional Level',
+                    description: 'First place in regional mathematics competition',
+                    date: '2023-01-15'
+                },
+                {
+                    id: '2',
+                    title: 'National Runner-Up - Newspaper Olympiad',
+                    category: 'National Level',
+                    description: 'Second place in national newspaper olympiad',
+                    date: '2023-03-20'
+                },
+                {
+                    id: '3',
+                    title: '2nd Place - National Children\'s Islamic Cultural Competition',
+                    category: 'National Level',
+                    description: 'Outstanding performance in national cultural competition',
+                    date: '2023-05-10'
+                },
+                {
+                    id: '4',
+                    title: 'Best Trainee Award',
+                    category: 'Agri-Business Marketing & Journalism',
+                    description: 'Recognized for excellence in training program',
+                    date: '2023-07-25'
+                }
+            ];
+
+            const defaultProjects = [
+                {
+                    id: '1',
+                    title: 'স্বাধীন বাংলা BioTrace',
+                    category: 'Innovation Project',
+                    description: 'Innovative biotechnology project focused on environmental solutions and sustainable development.',
+                    date: '2023-06-15'
+                }
+            ];
+
+            const defaultCertificates = [
+                {
+                    id: '1',
+                    title: 'Management Learning',
+                    category: '10 Minute School',
+                    description: 'Comprehensive management and leadership training program',
+                    date: '2023-02-10'
+                },
+                {
+                    id: '2',
+                    title: 'Digital Journalism',
+                    category: 'Reuters',
+                    description: 'Professional digital journalism and media training',
+                    date: '2023-04-18'
+                },
+                {
+                    id: '3',
+                    title: 'Mobile Journalism',
+                    category: 'Press Institute Bangladesh',
+                    description: 'Mobile journalism techniques and best practices',
+                    date: '2023-06-22'
+                },
+                {
+                    id: '4',
+                    title: 'Agri-Business Marketing & Social Media Journalism',
+                    category: 'Professional Training',
+                    description: 'Specialized training in agricultural business marketing and social media journalism',
+                    date: '2023-08-05'
+                },
+                {
+                    id: '5',
+                    title: 'Draw Your Dream Workshop',
+                    category: 'Creative Development',
+                    description: 'Creative workshop focused on visualization and goal setting',
+                    date: '2023-09-12'
+                },
+                {
+                    id: '6',
+                    title: 'Follow Your Dream Workshop',
+                    category: 'Personal Development',
+                    description: 'Personal development workshop on achieving life goals',
+                    date: '2023-10-08'
+                }
+            ];
+
+            useEffect(() => {
+                // Initialize fade-in animations
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('visible');
+                        }
+                    });
+                });
+
+                document.querySelectorAll('.fade-in').forEach(el => {
+                    observer.observe(el);
+                });
+
+                return () => observer.disconnect();
+            }, []);
+
+            const handleAdminClick = () => {
+                if (user?.isAdmin) {
+                    setShowAdmin(true);
+                } else {
+                    setShowLogin(true);
+                }
+            };
+
+            const handleLogin = (email, password) => {
+                const success = login(email, password);
+                if (success) {
+                    setShowLogin(false);
+                    setShowAdmin(true);
+                }
+                return success;
+            };
+
+            const handleLogout = () => {
+                logout();
+                setShowAdmin(false);
+            };
+
+            if (showAdmin && user?.isAdmin) {
+                return <AdminPanel onClose={() => setShowAdmin(false)} onLogout={handleLogout} />;
+            }
+
+            return (
+                <div className="smooth-scroll">
+                    <Navigation user={user} onAdminClick={handleAdminClick} />
+                    <Hero />
+                    <About />
+                    <ContentSection 
+                        id="achievements" 
+                        title="Achievements" 
+                        filename="achievements.json" 
+                        icon="fa-trophy"
+                        defaultData={defaultAchievements}
+                    />
+                    <ContentSection 
+                        id="projects" 
+                        title="Projects" 
+                        filename="projects.json" 
+                        icon="fa-project-diagram"
+                        defaultData={defaultProjects}
+                    />
+                    <DesignPortfolio />
+                    <ContentSection 
+                        id="certificates" 
+                        title="Certificates & Training" 
+                        filename="certificates.json" 
+                        icon="fa-certificate"
+                        defaultData={defaultCertificates}
+                    />
+                    <Contact />
+                    
+                    {/* GitHub Connection Status */}
+                    <div className="github-status">
+                        <div className="bg-green-500 text-white px-3 py-1 rounded text-sm">
+                            GitHub Connected
+                        </div>
+                    </div>
+
+                    {showLogin && (
+                        <AdminLogin 
+                            onLogin={handleLogin} 
+                            onCancel={() => setShowLogin(false)} 
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f1fa84025b81d8',t:'MTc1NTE5MDUxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
