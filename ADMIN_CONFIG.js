@@ -4,7 +4,7 @@ const GITHUB_TOKEN = "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"; // replace with
 
 // Admin credentials for your website
 const ADMIN_CONFIG = {
-    username: "FKSium",                     // your chosen admin username
+    username: "fksium@gmail.com",                     // your chosen admin username
     password: "Siumcancode@111"           // your chosen admin password
 };
 
