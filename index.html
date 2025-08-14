@@ -1253,7 +1253,7 @@
                             {activeView === 'dashboard' ? (
                                 <div>
                                     <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
-                                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                                         {collections.map((collection) => (
                                             <button
                                                 key={collection.name}
@@ -1264,6 +1264,46 @@
                                                 <h3 className="text-lg font-semibold">Add {collection.label}</h3>
                                             </button>
                                         ))}
+                                    </div>
+
+                                    <div className="mt-8 bg-white p-6 rounded-lg shadow">
+                                        <h3 className="text-lg font-semibold mb-4">
+                                            {isGitHubConfigured() ? 'GitHub Repository Structure' : 'Setup Instructions'}
+                                        </h3>
+                                        
+                                        {isGitHubConfigured() ? (
+                                            <div className="bg-gray-100 p-4 rounded font-mono text-sm">
+                                                <div>📁 {GITHUB_CONFIG.repo}/</div>
+                                                <div>├── achievements.json</div>
+                                                <div>├── projects.json</div>
+                                                <div>├── designs.json</div>
+                                                <div>├── certificates.json</div>
+                                                <div>└── 📁 images/</div>
+                                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── achievements/</div>
+                                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── projects/</div>
+                                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── designs/</div>
+                                                <div>&nbsp;&nbsp;&nbsp;&nbsp;└── certificates/</div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded">
+                                                    <h4 className="font-semibold text-yellow-800 mb-2">Currently using Local Storage</h4>
+                                                    <p className="text-yellow-700 text-sm">
+                                                        Your data is being saved locally in your browser. To enable GitHub storage and sync across devices:
+                                                    </p>
+                                                </div>
+                                                
+                                                <div className="bg-gray-50 p-4 rounded">
+                                                    <h4 className="font-semibold mb-2">Setup GitHub Integration:</h4>
+                                                    <ol className="list-decimal list-inside space-y-2 text-sm">
+                                                        <li>Create a new GitHub repository named "fk-sium-portfolio-data"</li>
+                                                        <li>Generate a Personal Access Token with "repo" permissions</li>
+                                                        <li>Update the GITHUB_CONFIG in the code with your details</li>
+                                                        <li>Your data will automatically sync to GitHub</li>
+                                                    </ol>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -1278,47 +1318,6 @@
                                         setActiveForm(activeView);
                                     }}
                                 />
-                            )}
-                        </div>
-                    </div>
-
-                        <div className="mt-8 bg-white p-6 rounded-lg shadow">
-                            <h3 className="text-lg font-semibold mb-4">
-                                {isGitHubConfigured() ? 'GitHub Repository Structure' : 'Setup Instructions'}
-                            </h3>
-                            
-                            {isGitHubConfigured() ? (
-                                <div className="bg-gray-100 p-4 rounded font-mono text-sm">
-                                    <div>📁 {GITHUB_CONFIG.repo}/</div>
-                                    <div>├── achievements.json</div>
-                                    <div>├── projects.json</div>
-                                    <div>├── designs.json</div>
-                                    <div>├── certificates.json</div>
-                                    <div>└── 📁 images/</div>
-                                    <div>&nbsp;&nbsp;&nbsp;&nbsp;├── achievements/</div>
-                                    <div>&nbsp;&nbsp;&nbsp;&nbsp;├── projects/</div>
-                                    <div>&nbsp;&nbsp;&nbsp;&nbsp;├── designs/</div>
-                                    <div>&nbsp;&nbsp;&nbsp;&nbsp;└── certificates/</div>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <div className="bg-yellow-50 border border-yellow-200 p-4 rounded">
-                                        <h4 className="font-semibold text-yellow-800 mb-2">Currently using Local Storage</h4>
-                                        <p className="text-yellow-700 text-sm">
-                                            Your data is being saved locally in your browser. To enable GitHub storage and sync across devices:
-                                        </p>
-                                    </div>
-                                    
-                                    <div className="bg-gray-50 p-4 rounded">
-                                        <h4 className="font-semibold mb-2">Setup GitHub Integration:</h4>
-                                        <ol className="list-decimal list-inside space-y-2 text-sm">
-                                            <li>Create a new GitHub repository named "fk-sium-portfolio-data"</li>
-                                            <li>Generate a Personal Access Token with "repo" permissions</li>
-                                            <li>Update the GITHUB_CONFIG in the code with your details</li>
-                                            <li>Your data will automatically sync to GitHub</li>
-                                        </ol>
-                                    </div>
-                                </div>
                             )}
                         </div>
                     </div>
@@ -1521,5 +1520,5 @@
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f2809ec03381d8',t:'MTc1NTE5NjAwNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f287e4755281d8',t:'MTc1NTE5NjMwNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
