@@ -103,10 +103,17 @@
             token: 'your-github-token' // Replace with your GitHub Personal Access Token
         };
 
-        // Admin Configuration
+        // Admin Configuration - Choose your preferred method
         const ADMIN_CONFIG = {
-            email: 'fazlulkarim.sium@gmail.com', // Replace with admin email
-            password: 'your-secure-password' // Replace with admin password
+            // Option 1: Simple password (recommended for personal use)
+            simplePassword: 'your-admin-password-123',
+            
+            // Option 2: GitHub-based (most secure)
+            githubAuth: true,
+            allowedGitHubUser: 'your-github-username',
+            
+            // Option 3: No authentication (public editing)
+            publicAdmin: false
         };
 
         // GitHub API Base URL
@@ -187,14 +194,62 @@
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(false);
 
-            const login = (email, password) => {
-                if (email === ADMIN_CONFIG.email && password === ADMIN_CONFIG.password) {
-                    const userData = { email, isAdmin: true };
-                    setUser(userData);
-                    localStorage.setItem('fk_sium_admin', JSON.stringify(userData));
-                    return true;
+            const login = async (input, password = null) => {
+                setLoading(true);
+                
+                try {
+                    // Option 1: Simple password authentication
+                    if (ADMIN_CONFIG.simplePassword && !password) {
+                        if (input === ADMIN_CONFIG.simplePassword) {
+                            const userData = { isAdmin: true, method: 'password' };
+                            setUser(userData);
+                            localStorage.setItem('fk_sium_admin', JSON.stringify(userData));
+                            return true;
+                        }
+                        return false;
+                    }
+                    
+                    // Option 2: GitHub authentication
+                    if (ADMIN_CONFIG.githubAuth && GITHUB_CONFIG.token) {
+                        try {
+                            const response = await fetch('https://api.github.com/user', {
+                                headers: {
+                                    'Authorization': `token ${GITHUB_CONFIG.token}`,
+                                    'Accept': 'application/vnd.github.v3+json'
+                                }
+                            });
+                            
+                            if (response.ok) {
+                                const githubUser = await response.json();
+                                if (githubUser.login === ADMIN_CONFIG.allowedGitHubUser) {
+                                    const userData = { 
+                                        isAdmin: true, 
+                                        method: 'github',
+                                        username: githubUser.login 
+                                    };
+                                    setUser(userData);
+                                    localStorage.setItem('fk_sium_admin', JSON.stringify(userData));
+                                    return true;
+                                }
+                            }
+                        } catch (error) {
+                            console.error('GitHub auth error:', error);
+                        }
+                        return false;
+                    }
+                    
+                    // Option 3: Public admin (no authentication)
+                    if (ADMIN_CONFIG.publicAdmin) {
+                        const userData = { isAdmin: true, method: 'public' };
+                        setUser(userData);
+                        localStorage.setItem('fk_sium_admin', JSON.stringify(userData));
+                        return true;
+                    }
+                    
+                    return false;
+                } finally {
+                    setLoading(false);
                 }
-                return false;
             };
 
             const logout = () => {
@@ -206,6 +261,11 @@
                 const savedUser = localStorage.getItem('fk_sium_admin');
                 if (savedUser) {
                     setUser(JSON.parse(savedUser));
+                }
+                
+                // Auto-login for public admin
+                if (ADMIN_CONFIG.publicAdmin && !savedUser) {
+                    login();
                 }
             }, []);
 
@@ -667,61 +727,108 @@
         };
 
         const AdminLogin = ({ onLogin, onCancel }) => {
-            const [credentials, setCredentials] = useState({ email: '', password: '' });
+            const [input, setInput] = useState('');
             const [loading, setLoading] = useState(false);
+
+            const getAuthMethod = () => {
+                if (ADMIN_CONFIG.simplePassword) return 'password';
+                if (ADMIN_CONFIG.githubAuth) return 'github';
+                if (ADMIN_CONFIG.publicAdmin) return 'public';
+                return 'password';
+            };
+
+            const authMethod = getAuthMethod();
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setLoading(true);
                 
-                setTimeout(() => {
-                    const success = onLogin(credentials.email, credentials.password);
+                try {
+                    const success = await onLogin(input);
                     if (!success) {
-                        alert('Invalid credentials');
+                        alert('Access denied. Please check your credentials.');
                     }
+                } catch (error) {
+                    alert('Login error: ' + error.message);
+                } finally {
                     setLoading(false);
-                }, 500);
+                }
             };
+
+            const getPlaceholder = () => {
+                switch (authMethod) {
+                    case 'password': return 'Enter admin password';
+                    case 'github': return 'GitHub authentication (automatic)';
+                    case 'public': return 'Public access enabled';
+                    default: return 'Enter credentials';
+                }
+            };
+
+            const getTitle = () => {
+                switch (authMethod) {
+                    case 'password': return 'Admin Access';
+                    case 'github': return 'GitHub Authentication';
+                    case 'public': return 'Public Admin';
+                    default: return 'Admin Login';
+                }
+            };
+
+            // Auto-login for GitHub or public access
+            useEffect(() => {
+                if (authMethod === 'github' || authMethod === 'public') {
+                    handleSubmit({ preventDefault: () => {} });
+                }
+            }, []);
+
+            if (authMethod === 'public') {
+                return null; // No login needed for public access
+            }
 
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-                        <h2 className="text-2xl font-bold text-center mb-6">Admin Login</h2>
-                        <form onSubmit={handleSubmit}>
-                            <div className="mb-4">
-                                <input
-                                    type="email"
-                                    placeholder="Email"
-                                    value={credentials.email}
-                                    onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
-                                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500"
-                                    required
-                                />
+                        <h2 className="text-2xl font-bold text-center mb-6">{getTitle()}</h2>
+                        
+                        {authMethod === 'github' ? (
+                            <div className="text-center">
+                                <div className="loading-spinner mx-auto mb-4"></div>
+                                <p className="text-gray-600 mb-4">Authenticating with GitHub...</p>
+                                <button
+                                    onClick={onCancel}
+                                    className="w-full bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors"
+                                >
+                                    Cancel
+                                </button>
                             </div>
-                            <div className="mb-6">
-                                <input
-                                    type="password"
-                                    placeholder="Password"
-                                    value={credentials.password}
-                                    onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-                                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500"
-                                    required
-                                />
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 mb-4"
-                            >
-                                {loading ? 'Logging in...' : 'Login'}
-                            </button>
-                        </form>
-                        <button
-                            onClick={onCancel}
-                            className="w-full bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors"
-                        >
-                            Cancel
-                        </button>
+                        ) : (
+                            <form onSubmit={handleSubmit}>
+                                <div className="mb-6">
+                                    <input
+                                        type="password"
+                                        placeholder={getPlaceholder()}
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500"
+                                        required
+                                        autoFocus
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 mb-4"
+                                >
+                                    {loading ? 'Authenticating...' : 'Access Admin Panel'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onCancel}
+                                    className="w-full bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </form>
+                        )}
                     </div>
                 </div>
             );
@@ -1033,8 +1140,8 @@
                 }
             };
 
-            const handleLogin = (email, password) => {
-                const success = login(email, password);
+            const handleLogin = async (input) => {
+                const success = await login(input);
                 if (success) {
                     setShowLogin(false);
                     setShowAdmin(true);
@@ -1099,5 +1206,5 @@
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f1fa84025b81d8',t:'MTc1NTE5MDUxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f23a97157c81d8',t:'MTc1NTE5MzEzOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
