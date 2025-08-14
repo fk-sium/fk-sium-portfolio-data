@@ -889,15 +889,128 @@
             );
         };
 
-        const AdminForm = ({ type, onSubmit, onCancel }) => {
+        const ContentManager = ({ type, onEdit, onAdd }) => {
+            const { data, loading, error } = useGitHubData(`${type}.json`);
+            const [deleting, setDeleting] = useState(null);
+
+            const handleDelete = async (item) => {
+                if (!confirm(`Are you sure you want to delete "${item.title}"?`)) return;
+                
+                setDeleting(item.id);
+                try {
+                    const filename = `${type}.json`;
+                    let items = [];
+
+                    if (isGitHubConfigured()) {
+                        const { content, sha } = await getFileContent(filename);
+                        items = content ? JSON.parse(content) : [];
+                        items = items.filter(i => i.id !== item.id);
+                        await saveFileContent(filename, JSON.stringify(items, null, 2), sha);
+                    } else {
+                        const localData = localStorage.getItem(`fk_sium_${filename}`);
+                        items = localData ? JSON.parse(localData) : [];
+                        items = items.filter(i => i.id !== item.id);
+                        localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(items));
+                    }
+
+                    alert('Item deleted successfully!');
+                    window.location.reload();
+                } catch (error) {
+                    alert('Error deleting item: ' + error.message);
+                } finally {
+                    setDeleting(null);
+                }
+            };
+
+            if (loading) return <LoadingSpinner />;
+
+            return (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold">Manage {type.charAt(0).toUpperCase() + type.slice(1)}</h2>
+                        <button
+                            onClick={onAdd}
+                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                        >
+                            <i className="fas fa-plus mr-2"></i>Add New
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {data.map((item) => (
+                                        <tr key={item.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    {item.imageUrl && (
+                                                        <img className="h-10 w-10 rounded-full mr-3 object-cover" src={item.imageUrl} alt="" />
+                                                    )}
+                                                    <div>
+                                                        <div className="text-sm font-medium text-gray-900">{item.title}</div>
+                                                        <div className="text-sm text-gray-500">{item.description?.substring(0, 50)}...</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.category}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {item.date ? new Date(item.date).toLocaleDateString() : 'N/A'}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                <button
+                                                    onClick={() => onEdit(item)}
+                                                    className="text-blue-600 hover:text-blue-900 mr-4"
+                                                >
+                                                    <i className="fas fa-edit"></i> Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(item)}
+                                                    disabled={deleting === item.id}
+                                                    className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                                                >
+                                                    {deleting === item.id ? (
+                                                        <><i className="fas fa-spinner fa-spin"></i> Deleting...</>
+                                                    ) : (
+                                                        <><i className="fas fa-trash"></i> Delete</>
+                                                    )}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        {data.length === 0 && (
+                            <div className="text-center py-12">
+                                <i className="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
+                                <p className="text-gray-500">No items found. Click "Add New" to get started.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminForm = ({ type, editingItem, onSubmit, onCancel }) => {
             const [formData, setFormData] = useState({
-                title: '',
-                category: '',
-                description: '',
-                date: new Date().toISOString().split('T')[0]
+                title: editingItem?.title || '',
+                category: editingItem?.category || '',
+                description: editingItem?.description || '',
+                date: editingItem?.date || new Date().toISOString().split('T')[0]
             });
             const [image, setImage] = useState(null);
             const [uploading, setUploading] = useState(false);
+            const [keepExistingImage, setKeepExistingImage] = useState(!!editingItem?.imageUrl);
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
@@ -915,13 +1028,16 @@
                             const base64 = await fileToBase64(image);
                             imageUrl = `data:${image.type};base64,${base64}`;
                         }
+                    } else if (keepExistingImage && editingItem?.imageUrl) {
+                        imageUrl = editingItem.imageUrl;
                     }
 
-                    const newItem = {
-                        id: Date.now().toString(),
+                    const itemData = {
+                        id: editingItem?.id || Date.now().toString(),
                         ...formData,
                         imageUrl,
-                        createdAt: new Date().toISOString()
+                        createdAt: editingItem?.createdAt || new Date().toISOString(),
+                        updatedAt: editingItem ? new Date().toISOString() : undefined
                     };
 
                     const filename = `${type}.json`;
@@ -932,7 +1048,18 @@
                         try {
                             const { content, sha } = await getFileContent(filename);
                             items = content ? JSON.parse(content) : [];
-                            items.unshift(newItem);
+                            
+                            if (editingItem) {
+                                // Update existing item
+                                const index = items.findIndex(item => item.id === editingItem.id);
+                                if (index !== -1) {
+                                    items[index] = itemData;
+                                }
+                            } else {
+                                // Add new item
+                                items.unshift(itemData);
+                            }
+                            
                             await saveFileContent(filename, JSON.stringify(items, null, 2), sha);
                         } catch (error) {
                             throw new Error(`GitHub error: ${error.message}`);
@@ -941,12 +1068,24 @@
                         // Local storage fallback
                         const localData = localStorage.getItem(`fk_sium_${filename}`);
                         items = localData ? JSON.parse(localData) : [];
-                        items.unshift(newItem);
+                        
+                        if (editingItem) {
+                            // Update existing item
+                            const index = items.findIndex(item => item.id === editingItem.id);
+                            if (index !== -1) {
+                                items[index] = itemData;
+                            }
+                        } else {
+                            // Add new item
+                            items.unshift(itemData);
+                        }
+                        
                         localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(items));
                     }
 
                     const storageType = isGitHubConfigured() ? 'GitHub' : 'local storage';
-                    alert(`${type.slice(0, -1)} added successfully to ${storageType}!`);
+                    const action = editingItem ? 'updated' : 'added';
+                    alert(`${type.slice(0, -1)} ${action} successfully to ${storageType}!`);
                     onSubmit();
                 } catch (error) {
                     alert('Error adding item: ' + error.message);
@@ -958,7 +1097,9 @@
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white p-8 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-                        <h3 className="text-xl font-semibold mb-4">Add New {type.slice(0, -1)}</h3>
+                        <h3 className="text-xl font-semibold mb-4">
+                            {editingItem ? 'Edit' : 'Add New'} {type.slice(0, -1)}
+                        </h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <input
                                 type="text"
@@ -988,19 +1129,46 @@
                                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                                 className="w-full px-4 py-2 border rounded"
                             />
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => setImage(e.target.files[0])}
-                                className="w-full px-4 py-2 border rounded"
-                            />
+                            
+                            {/* Image handling */}
+                            {editingItem?.imageUrl && (
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">Current Image:</label>
+                                    <img src={editingItem.imageUrl} alt="Current" className="w-20 h-20 object-cover rounded" />
+                                    <label className="flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={keepExistingImage}
+                                            onChange={(e) => setKeepExistingImage(e.target.checked)}
+                                            className="mr-2"
+                                        />
+                                        Keep existing image
+                                    </label>
+                                </div>
+                            )}
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    {editingItem?.imageUrl ? 'Replace with new image:' : 'Upload image:'}
+                                </label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        setImage(e.target.files[0]);
+                                        if (e.target.files[0]) setKeepExistingImage(false);
+                                    }}
+                                    className="w-full px-4 py-2 border rounded"
+                                />
+                            </div>
+                            
                             <div className="flex space-x-4">
                                 <button
                                     type="submit"
                                     disabled={uploading}
                                     className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
                                 >
-                                    {uploading ? 'Adding...' : 'Add Item'}
+                                    {uploading ? (editingItem ? 'Updating...' : 'Adding...') : (editingItem ? 'Update Item' : 'Add Item')}
                                 </button>
                                 <button
                                     type="button"
@@ -1018,6 +1186,8 @@
 
         const AdminPanel = ({ onClose, onLogout }) => {
             const [activeForm, setActiveForm] = useState(null);
+            const [activeView, setActiveView] = useState('dashboard');
+            const [editingItem, setEditingItem] = useState(null);
 
             const collections = [
                 { name: 'achievements', label: 'Achievements', icon: 'fa-trophy' },
@@ -1028,6 +1198,7 @@
 
             const handleFormSubmit = () => {
                 setActiveForm(null);
+                setEditingItem(null);
                 // Trigger a page reload to refresh data
                 window.location.reload();
             };
@@ -1054,19 +1225,62 @@
                         </div>
                     </nav>
 
-                    <div className="p-6">
-                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {collections.map((collection) => (
+                    <div className="flex">
+                        {/* Sidebar */}
+                        <div className="w-64 bg-white shadow-sm min-h-screen">
+                            <div className="p-4">
                                 <button
-                                    key={collection.name}
-                                    onClick={() => setActiveForm(collection.name)}
-                                    className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow text-center"
+                                    onClick={() => setActiveView('dashboard')}
+                                    className={`w-full text-left p-3 rounded mb-2 ${activeView === 'dashboard' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
                                 >
-                                    <i className={`fas ${collection.icon} text-3xl text-blue-600 mb-4`}></i>
-                                    <h3 className="text-lg font-semibold">Add {collection.label}</h3>
+                                    <i className="fas fa-tachometer-alt mr-3"></i>Dashboard
                                 </button>
-                            ))}
+                                {collections.map((collection) => (
+                                    <button
+                                        key={collection.name}
+                                        onClick={() => setActiveView(collection.name)}
+                                        className={`w-full text-left p-3 rounded mb-2 ${activeView === collection.name ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
+                                    >
+                                        <i className={`fas ${collection.icon} mr-3`}></i>
+                                        Manage {collection.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
+
+                        {/* Main Content */}
+                        <div className="flex-1 p-6">
+                            {activeView === 'dashboard' ? (
+                                <div>
+                                    <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
+                                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {collections.map((collection) => (
+                                            <button
+                                                key={collection.name}
+                                                onClick={() => setActiveForm(collection.name)}
+                                                className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow text-center"
+                                            >
+                                                <i className={`fas ${collection.icon} text-3xl text-blue-600 mb-4`}></i>
+                                                <h3 className="text-lg font-semibold">Add {collection.label}</h3>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <ContentManager 
+                                    type={activeView} 
+                                    onEdit={(item) => {
+                                        setEditingItem(item);
+                                        setActiveForm(activeView);
+                                    }}
+                                    onAdd={() => {
+                                        setEditingItem(null);
+                                        setActiveForm(activeView);
+                                    }}
+                                />
+                            )}
+                        </div>
+                    </div>
 
                         <div className="mt-8 bg-white p-6 rounded-lg shadow">
                             <h3 className="text-lg font-semibold mb-4">
@@ -1112,8 +1326,12 @@
                     {activeForm && (
                         <AdminForm
                             type={activeForm}
+                            editingItem={editingItem}
                             onSubmit={handleFormSubmit}
-                            onCancel={() => setActiveForm(null)}
+                            onCancel={() => {
+                                setActiveForm(null);
+                                setEditingItem(null);
+                            }}
                         />
                     )}
                 </div>
@@ -1303,5 +1521,5 @@
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f2790e77a681d8',t:'MTc1NTE5NTY5Ni4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f2809ec03381d8',t:'MTc1NTE5NjAwNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
