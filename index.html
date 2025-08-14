@@ -399,20 +399,28 @@
             );
         };
 
-        const Navigation = ({ user, onAdminClick }) => {
+        const Navigation = ({ user, onAdminClick, sectionSettings }) => {
             const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-            const navItems = [
-                { href: '#hero', label: 'Home' },
-                { href: '#about', label: 'About' },
-                { href: '#achievements', label: 'Achievements' },
-                { href: '#projects', label: 'Projects' },
-                { href: '#content', label: 'Content' },
-                { href: '#jobs', label: 'Experience' },
-                { href: '#designs', label: 'Designs' },
-                { href: '#certificates', label: 'Certificates' },
-                { href: '#contact', label: 'Contact' }
-            ];
+            // Generate navigation items based on section settings
+            const getNavItems = () => {
+                const baseItems = [{ href: '#hero', label: 'Home' }];
+                
+                // Sort sections by order and add to navigation
+                Object.entries(sectionSettings)
+                    .filter(([, settings]) => settings.visible)
+                    .sort(([,a], [,b]) => a.order - b.order)
+                    .forEach(([sectionName, settings]) => {
+                        baseItems.push({
+                            href: `#${sectionName}`,
+                            label: settings.title
+                        });
+                    });
+                
+                return baseItems;
+            };
+
+            const navItems = getNavItems();
 
             const scrollToSection = (href) => {
                 const element = document.querySelector(href);
@@ -1135,14 +1143,14 @@
 
         const SectionSettings = () => {
             const [sectionSettings, setSectionSettings] = useState({
-                about: { visible: true, title: 'About' },
-                achievements: { visible: true, title: 'Achievements' },
-                projects: { visible: true, title: 'Projects' },
-                content: { visible: true, title: 'Content & Articles' },
-                jobs: { visible: true, title: 'Experience' },
-                designs: { visible: true, title: 'Design Portfolio' },
-                certificates: { visible: true, title: 'Certificates & Training' },
-                contact: { visible: true, title: 'Contact' }
+                about: { visible: true, title: 'About', order: 1 },
+                achievements: { visible: true, title: 'Achievements', order: 2 },
+                projects: { visible: true, title: 'Projects', order: 3 },
+                content: { visible: true, title: 'Content & Articles', order: 4 },
+                jobs: { visible: true, title: 'Experience', order: 5 },
+                designs: { visible: true, title: 'Design Portfolio', order: 6 },
+                certificates: { visible: true, title: 'Certificates & Training', order: 7 },
+                contact: { visible: true, title: 'Contact', order: 999 } // Always last
             });
             const [saving, setSaving] = useState(false);
 
@@ -1215,11 +1223,17 @@
                     return;
                 }
                 
+                // Find the highest order number (excluding contact)
+                const maxOrder = Math.max(...Object.values(sectionSettings)
+                    .filter(s => s.order !== 999)
+                    .map(s => s.order));
+                
                 setSectionSettings(prev => ({
                     ...prev,
                     [sectionName]: {
                         visible: true,
-                        title: sectionTitle
+                        title: sectionTitle,
+                        order: maxOrder + 1
                     }
                 }));
                 
@@ -1245,25 +1259,42 @@
                     
                     <div className="bg-white p-6 rounded-lg shadow">
                         <p className="text-gray-600 mb-6">
-                            Control which sections appear on your portfolio and customize their titles.
+                            Control which sections appear on your portfolio, customize their titles, and set their display order. 
+                            The Contact section will always appear at the bottom.
                         </p>
                         
                         <div className="space-y-4">
-                            {Object.entries(sectionSettings).map(([sectionName, settings]) => (
+                            {Object.entries(sectionSettings)
+                                .sort(([,a], [,b]) => a.order - b.order)
+                                .map(([sectionName, settings]) => (
                                 <div key={sectionName} className="flex items-center justify-between p-4 border rounded-lg">
                                     <div className="flex items-center space-x-4">
-                                        <label className="flex items-center">
-                                            <input
-                                                type="checkbox"
-                                                checked={settings.visible}
-                                                onChange={(e) => updateSection(sectionName, 'visible', e.target.checked)}
-                                                className="mr-2"
-                                            />
-                                            <span className="font-medium capitalize">{sectionName}</span>
-                                        </label>
+                                        <div className="flex items-center space-x-2">
+                                            <span className="text-sm text-gray-500 w-8">#{settings.order === 999 ? '∞' : settings.order}</span>
+                                            <label className="flex items-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={settings.visible}
+                                                    onChange={(e) => updateSection(sectionName, 'visible', e.target.checked)}
+                                                    className="mr-2"
+                                                />
+                                                <span className="font-medium capitalize">{sectionName}</span>
+                                            </label>
+                                        </div>
                                     </div>
                                     
                                     <div className="flex items-center space-x-4">
+                                        {sectionName !== 'contact' && (
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="50"
+                                                value={settings.order}
+                                                onChange={(e) => updateSection(sectionName, 'order', parseInt(e.target.value) || 1)}
+                                                className="w-16 px-2 py-1 border rounded text-center"
+                                                title="Display Order"
+                                            />
+                                        )}
                                         <input
                                             type="text"
                                             value={settings.title}
@@ -1519,14 +1550,14 @@
             const [editingItem, setEditingItem] = useState(null);
 
             const [sectionSettings, setSectionSettings] = useState({
-                about: { visible: true, title: 'About' },
-                achievements: { visible: true, title: 'Achievements' },
-                projects: { visible: true, title: 'Projects' },
-                content: { visible: true, title: 'Content & Articles' },
-                jobs: { visible: true, title: 'Experience' },
-                designs: { visible: true, title: 'Design Portfolio' },
-                certificates: { visible: true, title: 'Certificates & Training' },
-                contact: { visible: true, title: 'Contact' }
+                about: { visible: true, title: 'About', order: 1 },
+                achievements: { visible: true, title: 'Achievements', order: 2 },
+                projects: { visible: true, title: 'Projects', order: 3 },
+                content: { visible: true, title: 'Content & Articles', order: 4 },
+                jobs: { visible: true, title: 'Experience', order: 5 },
+                designs: { visible: true, title: 'Design Portfolio', order: 6 },
+                certificates: { visible: true, title: 'Certificates & Training', order: 7 },
+                contact: { visible: true, title: 'Contact', order: 999 } // Always last
             });
 
             const collections = [
@@ -1743,6 +1774,16 @@
             const { user, login, logout } = useAuth();
             const [showAdmin, setShowAdmin] = useState(false);
             const [showLogin, setShowLogin] = useState(false);
+            const [sectionSettings, setSectionSettings] = useState({
+                about: { visible: true, title: 'About', order: 1 },
+                achievements: { visible: true, title: 'Achievements', order: 2 },
+                projects: { visible: true, title: 'Projects', order: 3 },
+                content: { visible: true, title: 'Content & Articles', order: 4 },
+                jobs: { visible: true, title: 'Experience', order: 5 },
+                designs: { visible: true, title: 'Design Portfolio', order: 6 },
+                certificates: { visible: true, title: 'Certificates & Training', order: 7 },
+                contact: { visible: true, title: 'Contact', order: 999 } // Always last
+            });
 
             // Default data for when GitHub files don't exist yet
             const defaultAchievements = [
@@ -1872,6 +1913,28 @@
                 }
             ];
 
+            // Load section settings
+            useEffect(() => {
+                const loadSectionSettings = async () => {
+                    try {
+                        if (isGitHubConfigured()) {
+                            const { content } = await getFileContent('sections.json');
+                            if (content) {
+                                setSectionSettings(prev => ({ ...prev, ...JSON.parse(content) }));
+                            }
+                        } else {
+                            const localData = localStorage.getItem('fk_sium_sections.json');
+                            if (localData) {
+                                setSectionSettings(prev => ({ ...prev, ...JSON.parse(localData) }));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading section settings:', error);
+                    }
+                };
+                loadSectionSettings();
+            }, []);
+
             useEffect(() => {
                 // Initialize fade-in animations
                 const observer = new IntersectionObserver((entries) => {
@@ -1915,48 +1978,73 @@
                 return <AdminPanel onClose={() => setShowAdmin(false)} onLogout={handleLogout} />;
             }
 
+            // Function to render sections dynamically
+            const renderSection = (sectionName, settings) => {
+                if (!settings.visible) return null;
+
+                // Special handling for built-in sections
+                if (sectionName === 'about') {
+                    return <About key={sectionName} />;
+                }
+                if (sectionName === 'contact') {
+                    return <Contact key={sectionName} />;
+                }
+                if (sectionName === 'designs') {
+                    return <DesignPortfolio key={sectionName} />;
+                }
+
+                // Default data for different section types
+                const getDefaultData = (sectionName) => {
+                    switch (sectionName) {
+                        case 'achievements': return defaultAchievements;
+                        case 'projects': return defaultProjects;
+                        case 'content': return defaultContent;
+                        case 'jobs': return defaultJobs;
+                        case 'certificates': return defaultCertificates;
+                        default: return [];
+                    }
+                };
+
+                // Default icons for different section types
+                const getIcon = (sectionName) => {
+                    switch (sectionName) {
+                        case 'achievements': return 'fa-trophy';
+                        case 'projects': return 'fa-project-diagram';
+                        case 'content': return 'fa-newspaper';
+                        case 'jobs': return 'fa-briefcase';
+                        case 'certificates': return 'fa-certificate';
+                        case 'skills': return 'fa-cogs';
+                        case 'education': return 'fa-graduation-cap';
+                        case 'testimonials': return 'fa-quote-left';
+                        case 'awards': return 'fa-medal';
+                        case 'volunteer': return 'fa-hands-helping';
+                        default: return 'fa-star';
+                    }
+                };
+
+                return (
+                    <ContentSection 
+                        key={sectionName}
+                        id={sectionName}
+                        title={settings.title}
+                        filename={`${sectionName}.json`}
+                        icon={getIcon(sectionName)}
+                        defaultData={getDefaultData(sectionName)}
+                    />
+                );
+            };
+
             return (
                 <div className="smooth-scroll">
-                    <Navigation user={user} onAdminClick={handleAdminClick} />
+                    <Navigation user={user} onAdminClick={handleAdminClick} sectionSettings={sectionSettings} />
                     <Hero />
-                    <About />
-                    <ContentSection 
-                        id="achievements" 
-                        title="Achievements" 
-                        filename="achievements.json" 
-                        icon="fa-trophy"
-                        defaultData={defaultAchievements}
-                    />
-                    <ContentSection 
-                        id="projects" 
-                        title="Projects" 
-                        filename="projects.json" 
-                        icon="fa-project-diagram"
-                        defaultData={defaultProjects}
-                    />
-                    <ContentSection 
-                        id="content" 
-                        title="Content & Articles" 
-                        filename="content.json" 
-                        icon="fa-newspaper"
-                        defaultData={defaultContent}
-                    />
-                    <ContentSection 
-                        id="jobs" 
-                        title="Experience" 
-                        filename="jobs.json" 
-                        icon="fa-briefcase"
-                        defaultData={defaultJobs}
-                    />
-                    <DesignPortfolio />
-                    <ContentSection 
-                        id="certificates" 
-                        title="Certificates & Training" 
-                        filename="certificates.json" 
-                        icon="fa-certificate"
-                        defaultData={defaultCertificates}
-                    />
-                    <Contact />
+                    
+                    {/* Render sections dynamically based on settings and order */}
+                    {Object.entries(sectionSettings)
+                        .sort(([,a], [,b]) => a.order - b.order)
+                        .map(([sectionName, settings]) => 
+                            renderSection(sectionName, settings)
+                        )}
                     
                     {/* Storage Status */}
                     <div className="github-status">
@@ -1977,5 +2065,5 @@
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f2b1a5012b81d8',t:'MTc1NTE5ODAxNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f2c3a9c12b81d8',t:'MTc1NTE5ODc1Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
