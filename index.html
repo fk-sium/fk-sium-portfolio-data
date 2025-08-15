@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FK Sium - Portfolio</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <title>Md. Fazlul Karim Sium - Portfolio</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
         * {
             font-family: 'Inter', sans-serif;
@@ -41,15 +42,41 @@
             transform: translateY(0);
         }
         
-        .hover-scale {
-            transition: transform 0.3s ease;
+        .lightbox {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
         }
         
-        .hover-scale:hover {
-            transform: scale(1.05);
+        .lightbox-content {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+            max-height: 80%;
+            object-fit: contain;
         }
         
-        .loading-spinner {
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .admin-panel {
+            display: none;
+        }
+        
+        .loading {
             display: inline-block;
             width: 20px;
             height: 20px;
@@ -63,2007 +90,880 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
-        .lightbox {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        
-        .lightbox img {
-            max-width: 90%;
-            max-height: 90%;
-            object-fit: contain;
-        }
-        
-        .github-status {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 100;
-        }
     </style>
 </head>
-<body>
-    <div id="root"></div>
-
-    <script type="text/babel">
-        // GitHub Configuration
-        const GITHUB_CONFIG = {
-            username: 'your-github-username', // Replace with your GitHub username
-            repo: 'fk-sium-portfolio-data', // Replace with your data repository name
-            branch: 'main',
-            token: 'your-github-token' // Replace with your GitHub Personal Access Token
-        };
-
-        // Check if GitHub is properly configured
-        const isGitHubConfigured = () => {
-            return GITHUB_CONFIG.username !== 'your-github-username' && 
-                   GITHUB_CONFIG.token !== 'your-github-token' &&
-                   GITHUB_CONFIG.username && 
-                   GITHUB_CONFIG.token;
-        };
-
-        // Admin Configuration - Choose your preferred method
-        const ADMIN_CONFIG = {
-            // Option 1: Simple password (recommended for personal use)
-            simplePassword: 'Siumcancode@18604',
-            
-            // Option 2: GitHub-based (most secure)
-            githubAuth: true,
-            allowedGitHubUser: 'your-github-username',
-            
-            // Option 3: No authentication (public editing)
-            publicAdmin: false
-        };
-
-        // GitHub API Base URL
-        const GITHUB_API = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/contents`;
-
-        // React Hooks
-        const { useState, useEffect, useRef } = React;
-
-        // GitHub API Helper Functions
-        const githubRequest = async (path, method = 'GET', data = null) => {
-            if (!isGitHubConfigured()) {
-                throw new Error('GitHub is not configured. Please update your GitHub username and token in the code.');
-            }
-
-            const url = `${GITHUB_API}/${path}`;
-            const options = {
-                method,
-                headers: {
-                    'Authorization': `token ${GITHUB_CONFIG.token}`,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json'
-                }
-            };
-
-            if (data) {
-                options.body = JSON.stringify(data);
-            }
-
-            try {
-                const response = await fetch(url, options);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    let errorMessage = `GitHub API error (${response.status}): ${response.statusText}`;
-                    
-                    if (response.status === 401) {
-                        errorMessage = 'Invalid GitHub token. Please check your token has the correct permissions.';
-                    } else if (response.status === 404) {
-                        errorMessage = 'Repository not found. Please check your GitHub username and repository name.';
-                    } else if (response.status === 403) {
-                        errorMessage = 'Access forbidden. Your token may not have the required permissions.';
-                    }
-                    
-                    throw new Error(errorMessage);
-                }
-                return response.json();
-            } catch (error) {
-                if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                    throw new Error('Network error. Please check your internet connection.');
-                }
-                throw error;
-            }
-        };
-
-        const getFileContent = async (filename) => {
-            try {
-                const response = await githubRequest(filename);
-                const content = atob(response.content);
-                return { content, sha: response.sha };
-            } catch (error) {
-                if (error.message.includes('404')) {
-                    return { content: null, sha: null };
-                }
-                throw error;
-            }
-        };
-
-        const saveFileContent = async (filename, content, sha = null) => {
-            const data = {
-                message: `Update ${filename}`,
-                content: btoa(content),
-                branch: GITHUB_CONFIG.branch
-            };
-
-            if (sha) {
-                data.sha = sha;
-            }
-
-            return await githubRequest(filename, 'PUT', data);
-        };
-
-        const uploadImage = async (file, folder = 'images') => {
-            const fileName = `${folder}/${Date.now()}_${file.name}`;
-            const base64 = await fileToBase64(file);
-            
-            await saveFileContent(fileName, base64);
-            return `https://raw.githubusercontent.com/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/${GITHUB_CONFIG.branch}/${fileName}`;
-        };
-
-        const fileToBase64 = (file) => {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result.split(',')[1]);
-                reader.onerror = error => reject(error);
-            });
-        };
-
-        // Custom Hooks
-        const useAuth = () => {
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(false);
-
-            const login = async (input, password = null) => {
-                setLoading(true);
-                
-                try {
-                    // Option 1: Simple password authentication
-                    if (ADMIN_CONFIG.simplePassword && !password) {
-                        if (input === ADMIN_CONFIG.simplePassword) {
-                            const userData = { isAdmin: true, method: 'password' };
-                            setUser(userData);
-                            localStorage.setItem('fk_sium_admin', JSON.stringify(userData));
-                            return true;
-                        }
-                        return false;
-                    }
-                    
-                    // Option 2: GitHub authentication
-                    if (ADMIN_CONFIG.githubAuth && GITHUB_CONFIG.token) {
-                        try {
-                            const response = await fetch('https://api.github.com/user', {
-                                headers: {
-                                    'Authorization': `token ${GITHUB_CONFIG.token}`,
-                                    'Accept': 'application/vnd.github.v3+json'
-                                }
-                            });
-                            
-                            if (response.ok) {
-                                const githubUser = await response.json();
-                                if (githubUser.login === ADMIN_CONFIG.allowedGitHubUser) {
-                                    const userData = { 
-                                        isAdmin: true, 
-                                        method: 'github',
-                                        username: githubUser.login 
-                                    };
-                                    setUser(userData);
-                                    localStorage.setItem('fk_sium_admin', JSON.stringify(userData));
-                                    return true;
-                                }
-                            }
-                        } catch (error) {
-                            console.error('GitHub auth error:', error);
-                        }
-                        return false;
-                    }
-                    
-                    // Option 3: Public admin (no authentication)
-                    if (ADMIN_CONFIG.publicAdmin) {
-                        const userData = { isAdmin: true, method: 'public' };
-                        setUser(userData);
-                        localStorage.setItem('fk_sium_admin', JSON.stringify(userData));
-                        return true;
-                    }
-                    
-                    return false;
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            const logout = () => {
-                setUser(null);
-                localStorage.removeItem('fk_sium_admin');
-            };
-
-            useEffect(() => {
-                const savedUser = localStorage.getItem('fk_sium_admin');
-                if (savedUser) {
-                    setUser(JSON.parse(savedUser));
-                }
-                
-                // Auto-login for public admin
-                if (ADMIN_CONFIG.publicAdmin && !savedUser) {
-                    login();
-                }
-            }, []);
-
-            return { user, loading, login, logout };
-        };
-
-        const useGitHubData = (filename) => {
-            const [data, setData] = useState([]);
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
-            const [usingLocalStorage, setUsingLocalStorage] = useState(false);
-
-            const fetchData = async () => {
-                try {
-                    setLoading(true);
-                    
-                    if (isGitHubConfigured()) {
-                        const { content } = await getFileContent(filename);
-                        if (content) {
-                            const parsedData = JSON.parse(content);
-                            const dataArray = Array.isArray(parsedData) ? parsedData : [];
-                            setData(dataArray);
-                            // Save to localStorage as backup
-                            localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(dataArray));
-                        } else {
-                            setData([]);
-                        }
-                        setUsingLocalStorage(false);
-                    } else {
-                        // Fallback to localStorage
-                        const localData = localStorage.getItem(`fk_sium_${filename}`);
-                        if (localData) {
-                            setData(JSON.parse(localData));
-                        } else {
-                            setData([]);
-                        }
-                        setUsingLocalStorage(true);
-                    }
-                    setError(null);
-                } catch (err) {
-                    console.error(`Error fetching ${filename}:`, err);
-                    setError(err.message);
-                    
-                    // Try localStorage as fallback
-                    const localData = localStorage.getItem(`fk_sium_${filename}`);
-                    if (localData) {
-                        setData(JSON.parse(localData));
-                        setUsingLocalStorage(true);
-                    } else {
-                        setData([]);
-                    }
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            useEffect(() => {
-                fetchData();
-            }, [filename]);
-
-            return { data, loading, error, refetch: fetchData, usingLocalStorage };
-        };
-
-        // Components
-        const LoadingSpinner = () => (
-            <div className="flex justify-center items-center p-8">
-                <div className="loading-spinner"></div>
-            </div>
-        );
-
-        const ProfileImage = () => {
-            const { data: profileData } = useGitHubData('profile.json');
-            const profileImage = profileData.find(item => item.type === 'profileImage');
-            
-            if (profileImage?.imageUrl) {
-                return (
-                    <img 
-                        src={profileImage.imageUrl} 
-                        alt="FK Sium" 
-                        className="w-full h-full object-cover"
-                    />
-                );
-            }
-            
-            return <i className="fas fa-user text-6xl text-white/80"></i>;
-        };
-
-        const Lightbox = ({ src, onClose }) => {
-            if (!src) return null;
-            
-            return (
-                <div className="lightbox" onClick={onClose}>
-                    <img src={src} alt="Lightbox" onClick={(e) => e.stopPropagation()} />
-                    <button 
-                        className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300"
-                        onClick={onClose}
-                    >
-                        ×
+<body class="bg-gray-50 smooth-scroll">
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full bg-white/90 backdrop-blur-md z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="text-2xl font-bold text-navy-800">Fazlul Karim</div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#home" class="text-gray-700 hover:text-blue-600 transition-colors">Home</a>
+                    <a href="#about" class="text-gray-700 hover:text-blue-600 transition-colors">About</a>
+                    <a href="#achievements" class="text-gray-700 hover:text-blue-600 transition-colors">Achievements</a>
+                    <a href="#experience" class="text-gray-700 hover:text-blue-600 transition-colors">Experience</a>
+                    <a href="#projects" class="text-gray-700 hover:text-blue-600 transition-colors">Projects</a>
+                    <a href="#portfolio" class="text-gray-700 hover:text-blue-600 transition-colors">Portfolio</a>
+                    <a href="#contact" class="text-gray-700 hover:text-blue-600 transition-colors">Contact</a>
+                </div>
+                <button id="adminBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                    Admin
+                </button>
+                <div class="md:hidden">
+                    <button id="mobileMenuBtn" class="text-gray-700">
+                        <i class="fas fa-bars text-xl"></i>
                     </button>
                 </div>
-            );
-        };
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div id="mobileMenu" class="hidden md:hidden bg-white border-t">
+            <div class="px-4 py-2 space-y-2">
+                <a href="#home" class="block py-2 text-gray-700">Home</a>
+                <a href="#about" class="block py-2 text-gray-700">About</a>
+                <a href="#achievements" class="block py-2 text-gray-700">Achievements</a>
+                <a href="#experience" class="block py-2 text-gray-700">Experience</a>
+                <a href="#projects" class="block py-2 text-gray-700">Projects</a>
+                <a href="#portfolio" class="block py-2 text-gray-700">Portfolio</a>
+                <a href="#contact" class="block py-2 text-gray-700">Contact</a>
+            </div>
+        </div>
+    </nav>
 
-        const Navigation = ({ user, onAdminClick, sectionSettings }) => {
-            const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-            // Generate navigation items based on section settings
-            const getNavItems = () => {
-                const baseItems = [{ href: '#hero', label: 'Home' }];
-                
-                // Sort sections by order and add to navigation
-                Object.entries(sectionSettings)
-                    .filter(([, settings]) => settings.visible)
-                    .sort(([,a], [,b]) => a.order - b.order)
-                    .forEach(([sectionName, settings]) => {
-                        baseItems.push({
-                            href: `#${sectionName}`,
-                            label: settings.title
-                        });
-                    });
-                
-                return baseItems;
-            };
-
-            const navItems = getNavItems();
-
-            const scrollToSection = (href) => {
-                const element = document.querySelector(href);
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth' });
-                }
-                setMobileMenuOpen(false);
-            };
-
-            return (
-                <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-md z-50 shadow-sm">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex justify-between items-center py-4">
-                            <div className="text-2xl font-bold text-gray-900">FK Sium</div>
-                            
-                            {/* Desktop Navigation */}
-                            <div className="hidden md:flex space-x-8">
-                                {navItems.map((item) => (
-                                    <button
-                                        key={item.href}
-                                        onClick={() => scrollToSection(item.href)}
-                                        className="text-gray-700 hover:text-blue-600 transition-colors"
-                                    >
-                                        {item.label}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <div className="flex items-center space-x-4">
-                                <button
-                                    onClick={onAdminClick}
-                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                                >
-                                    {user?.isAdmin ? 'Admin Panel' : 'Admin'}
-                                </button>
-                                
-                                {/* Mobile Menu Button */}
-                                <button
-                                    className="md:hidden text-gray-700"
-                                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                                >
-                                    <i className="fas fa-bars text-xl"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Mobile Menu */}
-                        {mobileMenuOpen && (
-                            <div className="md:hidden bg-white border-t">
-                                <div className="px-4 py-2 space-y-2">
-                                    {navItems.map((item) => (
-                                        <button
-                                            key={item.href}
-                                            onClick={() => scrollToSection(item.href)}
-                                            className="block w-full text-left py-2 text-gray-700 hover:text-blue-600"
-                                        >
-                                            {item.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+    <!-- Public Portfolio -->
+    <div id="publicSite">
+        <!-- Hero Section -->
+        <section id="home" class="min-h-screen flex items-center gradient-bg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+                <div class="fade-in">
+                    <div class="w-48 h-48 mx-auto mb-8 rounded-full bg-white/20 flex items-center justify-center">
+                        <i class="fas fa-user text-6xl text-white/80"></i>
                     </div>
-                </nav>
-            );
-        };
-
-        const Hero = () => {
-            return (
-                <section id="hero" className="min-h-screen flex items-center gradient-bg pt-20">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-                        <div className="fade-in">
-                            <div className="w-48 h-48 mx-auto mb-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">
-                                <ProfileImage />
-                            </div>
-                            <h1 className="text-5xl md:text-7xl font-bold mb-6">FK Sium</h1>
-                            <p className="text-xl md:text-2xl mb-8 text-white/90">Student • Leader • Creator</p>
-                            <p className="text-lg md:text-xl max-w-3xl mx-auto mb-12 text-white/80">
-                                Dedicated student and leader from Bangladesh with extensive experience in academics, 
-                                leadership, journalism, and creative work. Champion in mathematics olympiads and 
-                                passionate about community development.
-                            </p>
-                            <div className="space-x-4">
-                                <button
-                                    onClick={() => document.querySelector('#about').scrollIntoView({ behavior: 'smooth' })}
-                                    className="inline-block bg-white text-blue-600 px-8 py-4 rounded-full font-semibold hover:bg-gray-100 transition-colors"
-                                >
-                                    Learn More About Me
-                                </button>
-                                <button
-                                    onClick={() => document.querySelector('#contact').scrollIntoView({ behavior: 'smooth' })}
-                                    className="inline-block bg-transparent border-2 border-white text-white px-8 py-4 rounded-full font-semibold hover:bg-white hover:text-blue-600 transition-colors"
-                                >
-                                    Get In Touch
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        const About = () => {
-            return (
-                <section id="about" className="py-20 bg-white">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="text-center mb-16 fade-in">
-                            <h2 className="text-4xl font-bold text-gray-900 mb-4">About FK Sium</h2>
-                            <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
-                        </div>
-                        
-                        <div className="grid md:grid-cols-2 gap-12 items-center">
-                            <div className="fade-in">
-                                <h3 className="text-2xl font-semibold mb-6 text-gray-900">My Journey</h3>
-                                <p className="text-gray-600 mb-6 leading-relaxed">
-                                    I am Md. Fazlul Karim Sium, a passionate student and leader from Bangladesh, 
-                                    committed to excellence in academics and making meaningful contributions to my community. 
-                                    With a strong foundation in mathematics and science, I've consistently achieved top academic results.
-                                </p>
-                                <p className="text-gray-600 mb-6 leading-relaxed">
-                                    My journey includes championship victories in mathematics olympiads, leadership roles 
-                                    in various organizations, and extensive work in journalism and community development. 
-                                    I believe in the power of education and leadership to create positive change.
-                                </p>
-                                <div className="space-y-4">
-                                    <div className="flex items-center">
-                                        <i className="fas fa-graduation-cap text-blue-600 mr-3"></i>
-                                        <span className="text-gray-700">GPA 5.0 in both SSC & HSC</span>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <i className="fas fa-language text-blue-600 mr-3"></i>
-                                        <span className="text-gray-700">IELTS Band 7</span>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <i className="fas fa-map-marker-alt text-blue-600 mr-3"></i>
-                                        <span className="text-gray-700">Chattogram, Bangladesh</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="fade-in">
-                                <h3 className="text-2xl font-semibold mb-6 text-gray-900">Leadership & Skills</h3>
-                                <div className="space-y-4">
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h4 className="font-semibold text-gray-900">Academic Excellence</h4>
-                                        <p className="text-gray-600">Mathematics Olympiad Champion, consistent top performer</p>
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h4 className="font-semibold text-gray-900">Leadership</h4>
-                                        <p className="text-gray-600">Multiple leadership roles in student organizations</p>
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h4 className="font-semibold text-gray-900">Journalism</h4>
-                                        <p className="text-gray-600">Correspondent for NTV Online & Kaler Kantho</p>
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <h4 className="font-semibold text-gray-900">Community Work</h4>
-                                        <p className="text-gray-600">Active in various social and cultural initiatives</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        const ContentCard = ({ item, onImageClick, showImage = true }) => {
-            return (
-                <div className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow hover-scale">
-                    {showImage && item.imageUrl && (
-                        <div className="mb-4">
-                            <img
-                                src={item.imageUrl}
-                                alt={item.title}
-                                className="w-full h-48 object-cover rounded-lg cursor-pointer"
-                                onClick={() => onImageClick(item.imageUrl)}
-                            />
-                        </div>
-                    )}
-                    <div className="text-center">
-                        <i className={`fas ${item.icon || 'fa-star'} text-4xl text-blue-600 mb-4`}></i>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">{item.title}</h3>
-                        {item.category && (
-                            <p className="text-blue-600 mb-3">{item.category}</p>
-                        )}
-                        <p className="text-gray-600">{item.description}</p>
-                        {item.date && (
-                            <p className="text-sm text-gray-500 mt-2">{new Date(item.date).toLocaleDateString()}</p>
-                        )}
-                    </div>
+                    <h1 class="text-5xl md:text-7xl font-bold mb-6">Md. Fazlul Karim Sium</h1>
+                    <p class="text-xl md:text-2xl mb-8 text-white/90">Student • Leader • Creator</p>
+                    <p class="text-lg md:text-xl max-w-3xl mx-auto mb-12 text-white/80">
+                        Dedicated student and leader from Bangladesh with extensive experience in academics, 
+                        leadership, extracurricular activities, and creative work.
+                    </p>
+                    <a href="#about" class="inline-block bg-white text-blue-600 px-8 py-4 rounded-full font-semibold hover:bg-gray-100 transition-colors">
+                        Learn More About Me
+                    </a>
                 </div>
-            );
-        };
+            </div>
+        </section>
 
-        const ContentSection = ({ id, title, filename, icon = 'fa-star', defaultData = [] }) => {
-            const { data, loading, error } = useGitHubData(filename);
-            const [lightboxImage, setLightboxImage] = useState(null);
-
-            // Use default data if no data is loaded and no error
-            const displayData = data.length > 0 ? data : (error ? [] : defaultData);
-
-            if (loading) return <LoadingSpinner />;
-
-            return (
-                <section id={id} className="py-20 bg-gray-50">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="text-center mb-16 fade-in">
-                            <h2 className="text-4xl font-bold text-gray-900 mb-4">{title}</h2>
-                            <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
-                        </div>
-                        
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {displayData.map((item, index) => (
-                                <ContentCard
-                                    key={item.id || index}
-                                    item={{ ...item, icon }}
-                                    onImageClick={setLightboxImage}
-                                />
-                            ))}
-                        </div>
-                        
-                        {displayData.length === 0 && (
-                            <div className="text-center text-gray-500">
-                                <p>No {title.toLowerCase()} available at the moment.</p>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <Lightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />
-                </section>
-            );
-        };
-
-        const DesignPortfolio = () => {
-            const { data, loading, error } = useGitHubData('designs.json');
-            const [lightboxImage, setLightboxImage] = useState(null);
-
-            if (loading) return <LoadingSpinner />;
-
-            return (
-                <section id="designs" className="py-20 bg-white">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="text-center mb-16 fade-in">
-                            <h2 className="text-4xl font-bold text-gray-900 mb-4">Design Portfolio</h2>
-                            <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {data.map((design, index) => (
-                                <div
-                                    key={design.id || index}
-                                    className="aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity hover-scale"
-                                    onClick={() => setLightboxImage(design.imageUrl)}
-                                >
-                                    <img
-                                        src={design.imageUrl}
-                                        alt={design.title}
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                        
-                        {data.length === 0 && (
-                            <div className="text-center text-gray-500">
-                                <p>No designs available at the moment.</p>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <Lightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />
-                </section>
-            );
-        };
-
-        const Contact = () => {
-            const [formData, setFormData] = useState({ name: '', email: '', message: '' });
-            const [sending, setSending] = useState(false);
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setSending(true);
-                
-                // Simulate form submission
-                setTimeout(() => {
-                    alert(`Thank you ${formData.name}! Your message has been received. I'll get back to you soon.`);
-                    setFormData({ name: '', email: '', message: '' });
-                    setSending(false);
-                }, 1000);
-            };
-
-            const handleChange = (e) => {
-                setFormData({ ...formData, [e.target.name]: e.target.value });
-            };
-
-            return (
-                <section id="contact" className="py-20 bg-gray-900 text-white">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="text-center mb-16 fade-in">
-                            <h2 className="text-4xl font-bold mb-4">Get In Touch</h2>
-                            <div className="w-24 h-1 bg-blue-600 mx-auto"></div>
-                        </div>
-                        
-                        <div className="grid md:grid-cols-2 gap-12">
-                            <div className="fade-in">
-                                <h3 className="text-2xl font-semibold mb-6">Contact Information</h3>
-                                <div className="space-y-4">
-                                    <div className="flex items-center">
-                                        <i className="fas fa-envelope text-blue-400 mr-4"></i>
-                                        <span>fazlulkarim.sium@gmail.com</span>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <i className="fas fa-map-marker-alt text-blue-400 mr-4"></i>
-                                        <span>Chattogram, Bangladesh</span>
-                                    </div>
-                                </div>
-                                
-                                <div className="mt-8">
-                                    <h4 className="text-lg font-semibold mb-4">Connect With Me</h4>
-                                    <div className="flex space-x-4">
-                                        <a href="#" className="text-blue-400 hover:text-blue-300 text-2xl transition-colors">
-                                            <i className="fab fa-linkedin"></i>
-                                        </a>
-                                        <a href="#" className="text-blue-400 hover:text-blue-300 text-2xl transition-colors">
-                                            <i className="fab fa-facebook"></i>
-                                        </a>
-                                        <a href="#" className="text-blue-400 hover:text-blue-300 text-2xl transition-colors">
-                                            <i className="fab fa-twitter"></i>
-                                        </a>
-                                        <a href="#" className="text-blue-400 hover:text-blue-300 text-2xl transition-colors">
-                                            <i className="fab fa-instagram"></i>
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="fade-in">
-                                <form onSubmit={handleSubmit} className="space-y-6">
-                                    <div>
-                                        <input
-                                            type="text"
-                                            name="name"
-                                            value={formData.name}
-                                            onChange={handleChange}
-                                            placeholder="Your Name"
-                                            required
-                                            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <input
-                                            type="email"
-                                            name="email"
-                                            value={formData.email}
-                                            onChange={handleChange}
-                                            placeholder="Your Email"
-                                            required
-                                            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <textarea
-                                            name="message"
-                                            value={formData.message}
-                                            onChange={handleChange}
-                                            rows="5"
-                                            placeholder="Your Message"
-                                            required
-                                            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white resize-none"
-                                        ></textarea>
-                                    </div>
-                                    <button
-                                        type="submit"
-                                        disabled={sending}
-                                        className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50"
-                                    >
-                                        {sending ? 'Sending...' : 'Send Message'}
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        const AdminLogin = ({ onLogin, onCancel }) => {
-            const [input, setInput] = useState('');
-            const [loading, setLoading] = useState(false);
-
-            const getAuthMethod = () => {
-                if (ADMIN_CONFIG.simplePassword) return 'password';
-                if (ADMIN_CONFIG.githubAuth) return 'github';
-                if (ADMIN_CONFIG.publicAdmin) return 'public';
-                return 'password';
-            };
-
-            const authMethod = getAuthMethod();
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                
-                try {
-                    const success = await onLogin(input);
-                    if (!success) {
-                        alert('Access denied. Please check your credentials.');
-                    }
-                } catch (error) {
-                    alert('Login error: ' + error.message);
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            const getPlaceholder = () => {
-                switch (authMethod) {
-                    case 'password': return 'Enter admin password';
-                    case 'github': return 'GitHub authentication (automatic)';
-                    case 'public': return 'Public access enabled';
-                    default: return 'Enter credentials';
-                }
-            };
-
-            const getTitle = () => {
-                switch (authMethod) {
-                    case 'password': return 'Admin Access';
-                    case 'github': return 'GitHub Authentication';
-                    case 'public': return 'Public Admin';
-                    default: return 'Admin Login';
-                }
-            };
-
-            // Auto-login for GitHub or public access
-            useEffect(() => {
-                if (authMethod === 'github' || authMethod === 'public') {
-                    handleSubmit({ preventDefault: () => {} });
-                }
-            }, []);
-
-            if (authMethod === 'public') {
-                return null; // No login needed for public access
-            }
-
-            return (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-                        <h2 className="text-2xl font-bold text-center mb-6">{getTitle()}</h2>
-                        
-                        {authMethod === 'github' ? (
-                            <div className="text-center">
-                                <div className="loading-spinner mx-auto mb-4"></div>
-                                <p className="text-gray-600 mb-4">Authenticating with GitHub...</p>
-                                <button
-                                    onClick={onCancel}
-                                    className="w-full bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        ) : (
-                            <form onSubmit={handleSubmit}>
-                                <div className="mb-6">
-                                    <input
-                                        type="password"
-                                        placeholder={getPlaceholder()}
-                                        value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500"
-                                        required
-                                        autoFocus
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 mb-4"
-                                >
-                                    {loading ? 'Authenticating...' : 'Access Admin Panel'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={onCancel}
-                                    className="w-full bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            </form>
-                        )}
-                    </div>
+        <!-- About Section -->
+        <section id="about" class="py-20 bg-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-16 fade-in">
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">About Me</h2>
+                    <div class="w-24 h-1 bg-blue-600 mx-auto"></div>
                 </div>
-            );
-        };
-
-        const ContentManager = ({ type, onEdit, onAdd }) => {
-            const { data, loading, error } = useGitHubData(`${type}.json`);
-            const [deleting, setDeleting] = useState(null);
-
-            const handleDelete = async (item) => {
-                if (!confirm(`Are you sure you want to delete "${item.title}"?`)) return;
-                
-                setDeleting(item.id);
-                try {
-                    const filename = `${type}.json`;
-                    let items = [];
-
-                    if (isGitHubConfigured()) {
-                        const { content, sha } = await getFileContent(filename);
-                        items = content ? JSON.parse(content) : [];
-                        items = items.filter(i => i.id !== item.id);
-                        await saveFileContent(filename, JSON.stringify(items, null, 2), sha);
-                    } else {
-                        const localData = localStorage.getItem(`fk_sium_${filename}`);
-                        items = localData ? JSON.parse(localData) : [];
-                        items = items.filter(i => i.id !== item.id);
-                        localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(items));
-                    }
-
-                    alert('Item deleted successfully!');
-                    window.location.reload();
-                } catch (error) {
-                    alert('Error deleting item: ' + error.message);
-                } finally {
-                    setDeleting(null);
-                }
-            };
-
-            if (loading) return <LoadingSpinner />;
-
-            return (
-                <div>
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold">Manage {type.charAt(0).toUpperCase() + type.slice(1)}</h2>
-                        <button
-                            onClick={onAdd}
-                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                        >
-                            <i className="fas fa-plus mr-2"></i>Add New
-                        </button>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {data.map((item) => (
-                                        <tr key={item.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    {item.imageUrl && (
-                                                        <img className="h-10 w-10 rounded-full mr-3 object-cover" src={item.imageUrl} alt="" />
-                                                    )}
-                                                    <div>
-                                                        <div className="text-sm font-medium text-gray-900">{item.title}</div>
-                                                        <div className="text-sm text-gray-500">{item.description?.substring(0, 50)}...</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.category}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {item.date ? new Date(item.date).toLocaleDateString() : 'N/A'}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                <button
-                                                    onClick={() => onEdit(item)}
-                                                    className="text-blue-600 hover:text-blue-900 mr-4"
-                                                >
-                                                    <i className="fas fa-edit"></i> Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(item)}
-                                                    disabled={deleting === item.id}
-                                                    className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                                                >
-                                                    {deleting === item.id ? (
-                                                        <><i className="fas fa-spinner fa-spin"></i> Deleting...</>
-                                                    ) : (
-                                                        <><i className="fas fa-trash"></i> Delete</>
-                                                    )}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        {data.length === 0 && (
-                            <div className="text-center py-12">
-                                <i className="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
-                                <p className="text-gray-500">No items found. Click "Add New" to get started.</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        const ProfileSettings = () => {
-            const [uploading, setUploading] = useState(false);
-            const { data: profileData, refetch } = useGitHubData('profile.json');
-            const currentProfile = profileData.find(item => item.type === 'profileImage') || {};
-
-            const handleImageUpload = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                setUploading(true);
-                try {
-                    let imageUrl = '';
-                    
-                    if (isGitHubConfigured()) {
-                        imageUrl = await uploadImage(file, 'profile');
-                    } else {
-                        const base64 = await fileToBase64(file);
-                        imageUrl = `data:${file.type};base64,${base64}`;
-                    }
-
-                    const profileItem = {
-                        id: currentProfile.id || 'profile-image',
-                        type: 'profileImage',
-                        title: 'Profile Picture',
-                        imageUrl,
-                        updatedAt: new Date().toISOString()
-                    };
-
-                    const filename = 'profile.json';
-                    let items = [];
-
-                    if (isGitHubConfigured()) {
-                        const { content, sha } = await getFileContent(filename);
-                        items = content ? JSON.parse(content) : [];
-                        const existingIndex = items.findIndex(item => item.type === 'profileImage');
-                        
-                        if (existingIndex !== -1) {
-                            items[existingIndex] = profileItem;
-                        } else {
-                            items.push(profileItem);
-                        }
-                        
-                        await saveFileContent(filename, JSON.stringify(items, null, 2), sha);
-                    } else {
-                        const localData = localStorage.getItem(`fk_sium_${filename}`);
-                        items = localData ? JSON.parse(localData) : [];
-                        const existingIndex = items.findIndex(item => item.type === 'profileImage');
-                        
-                        if (existingIndex !== -1) {
-                            items[existingIndex] = profileItem;
-                        } else {
-                            items.push(profileItem);
-                        }
-                        
-                        localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(items));
-                    }
-
-                    alert('Profile picture updated successfully!');
-                    refetch();
-                } catch (error) {
-                    alert('Error uploading image: ' + error.message);
-                } finally {
-                    setUploading(false);
-                }
-            };
-
-            return (
-                <div>
-                    <h2 className="text-2xl font-bold mb-6">Profile Settings</h2>
-                    
-                    <div className="bg-white p-6 rounded-lg shadow">
-                        <h3 className="text-lg font-semibold mb-4">Profile Picture</h3>
-                        
-                        <div className="flex items-center space-x-6">
-                            <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                                {currentProfile.imageUrl ? (
-                                    <img 
-                                        src={currentProfile.imageUrl} 
-                                        alt="Profile" 
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    <i className="fas fa-user text-4xl text-gray-400"></i>
-                                )}
-                            </div>
-                            
-                            <div>
-                                <label className="block">
-                                    <span className="sr-only">Choose profile picture</span>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleImageUpload}
-                                        disabled={uploading}
-                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                    />
-                                </label>
-                                {uploading && (
-                                    <p className="text-sm text-blue-600 mt-2">
-                                        <i className="fas fa-spinner fa-spin mr-2"></i>
-                                        Uploading...
-                                    </p>
-                                )}
-                                <p className="text-sm text-gray-500 mt-2">
-                                    Upload a square image for best results. Recommended size: 400x400px
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const SectionSettings = () => {
-            const [sectionSettings, setSectionSettings] = useState({
-                about: { visible: true, title: 'About', order: 1 },
-                achievements: { visible: true, title: 'Achievements', order: 2 },
-                projects: { visible: true, title: 'Projects', order: 3 },
-                content: { visible: true, title: 'Content & Articles', order: 4 },
-                jobs: { visible: true, title: 'Experience', order: 5 },
-                designs: { visible: true, title: 'Design Portfolio', order: 6 },
-                certificates: { visible: true, title: 'Certificates & Training', order: 7 },
-                contact: { visible: true, title: 'Contact', order: 999 } // Always last
-            });
-            const [saving, setSaving] = useState(false);
-
-            useEffect(() => {
-                // Load section settings from storage
-                const loadSettings = async () => {
-                    try {
-                        if (isGitHubConfigured()) {
-                            const { content } = await getFileContent('sections.json');
-                            if (content) {
-                                setSectionSettings({ ...sectionSettings, ...JSON.parse(content) });
-                            }
-                        } else {
-                            const localData = localStorage.getItem('fk_sium_sections.json');
-                            if (localData) {
-                                setSectionSettings({ ...sectionSettings, ...JSON.parse(localData) });
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Error loading section settings:', error);
-                    }
-                };
-                loadSettings();
-            }, []);
-
-            const handleSave = async () => {
-                setSaving(true);
-                try {
-                    const filename = 'sections.json';
-                    
-                    if (isGitHubConfigured()) {
-                        const { sha } = await getFileContent(filename);
-                        await saveFileContent(filename, JSON.stringify(sectionSettings, null, 2), sha);
-                    } else {
-                        localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(sectionSettings));
-                    }
-                    
-                    alert('Section settings saved successfully!');
-                } catch (error) {
-                    alert('Error saving settings: ' + error.message);
-                } finally {
-                    setSaving(false);
-                }
-            };
-
-            const updateSection = (sectionName, field, value) => {
-                setSectionSettings(prev => ({
-                    ...prev,
-                    [sectionName]: {
-                        ...prev[sectionName],
-                        [field]: value
-                    }
-                }));
-            };
-
-            const addNewSection = () => {
-                const nameInput = document.getElementById('newSectionName');
-                const titleInput = document.getElementById('newSectionTitle');
-                
-                const sectionName = nameInput.value.toLowerCase().replace(/\s+/g, '');
-                const sectionTitle = titleInput.value.trim();
-                
-                if (!sectionName || !sectionTitle) {
-                    alert('Please enter both section name and title');
-                    return;
-                }
-                
-                if (sectionSettings[sectionName]) {
-                    alert('Section already exists');
-                    return;
-                }
-                
-                // Find the highest order number (excluding contact)
-                const maxOrder = Math.max(...Object.values(sectionSettings)
-                    .filter(s => s.order !== 999)
-                    .map(s => s.order));
-                
-                setSectionSettings(prev => ({
-                    ...prev,
-                    [sectionName]: {
-                        visible: true,
-                        title: sectionTitle,
-                        order: maxOrder + 1
-                    }
-                }));
-                
-                nameInput.value = '';
-                titleInput.value = '';
-            };
-
-            const removeSection = (sectionName) => {
-                if (!confirm(`Are you sure you want to remove the "${sectionName}" section?`)) {
-                    return;
-                }
-                
-                setSectionSettings(prev => {
-                    const newSettings = { ...prev };
-                    delete newSettings[sectionName];
-                    return newSettings;
-                });
-            };
-
-            return (
-                <div>
-                    <h2 className="text-2xl font-bold mb-6">Section Settings</h2>
-                    
-                    <div className="bg-white p-6 rounded-lg shadow">
-                        <p className="text-gray-600 mb-6">
-                            Control which sections appear on your portfolio, customize their titles, and set their display order. 
-                            The Contact section will always appear at the bottom.
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div class="fade-in">
+                        <h3 class="text-2xl font-semibold mb-6 text-gray-900">My Journey</h3>
+                        <p class="text-gray-600 mb-6 leading-relaxed">
+                            I am a passionate student and leader from Bangladesh, committed to excellence in academics 
+                            and making meaningful contributions to my community. With a strong foundation in mathematics 
+                            and science, I've consistently achieved top academic results.
                         </p>
-                        
-                        <div className="space-y-4">
-                            {Object.entries(sectionSettings)
-                                .sort(([,a], [,b]) => a.order - b.order)
-                                .map(([sectionName, settings]) => (
-                                <div key={sectionName} className="flex items-center justify-between p-4 border rounded-lg">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-sm text-gray-500 w-8">#{settings.order === 999 ? '∞' : settings.order}</span>
-                                            <label className="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={settings.visible}
-                                                    onChange={(e) => updateSection(sectionName, 'visible', e.target.checked)}
-                                                    className="mr-2"
-                                                />
-                                                <span className="font-medium capitalize">{sectionName}</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center space-x-4">
-                                        {sectionName !== 'contact' && (
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                max="50"
-                                                value={settings.order}
-                                                onChange={(e) => updateSection(sectionName, 'order', parseInt(e.target.value) || 1)}
-                                                className="w-16 px-2 py-1 border rounded text-center"
-                                                title="Display Order"
-                                            />
-                                        )}
-                                        <input
-                                            type="text"
-                                            value={settings.title}
-                                            onChange={(e) => updateSection(sectionName, 'title', e.target.value)}
-                                            className="px-3 py-1 border rounded"
-                                            placeholder="Section Title"
-                                        />
-                                        <span className={`px-2 py-1 rounded text-sm ${settings.visible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                            {settings.visible ? 'Visible' : 'Hidden'}
-                                        </span>
-                                        {!['about', 'contact'].includes(sectionName) && (
-                                            <button
-                                                onClick={() => removeSection(sectionName)}
-                                                className="text-red-600 hover:text-red-800 px-2 py-1"
-                                                title="Remove Section"
-                                            >
-                                                <i className="fas fa-trash"></i>
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        
-                        {/* Add New Section */}
-                        <div className="mt-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                            <h4 className="font-medium mb-4">Add New Section</h4>
-                            <div className="flex space-x-4">
-                                <input
-                                    type="text"
-                                    placeholder="Section Name (e.g., skills, education)"
-                                    className="flex-1 px-3 py-2 border rounded"
-                                    id="newSectionName"
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Display Title (e.g., Skills & Expertise)"
-                                    className="flex-1 px-3 py-2 border rounded"
-                                    id="newSectionTitle"
-                                />
-                                <button
-                                    onClick={addNewSection}
-                                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                                >
-                                    <i className="fas fa-plus mr-2"></i>Add Section
-                                </button>
+                        <div class="space-y-4">
+                            <div class="flex items-center">
+                                <i class="fas fa-graduation-cap text-blue-600 mr-3"></i>
+                                <span class="text-gray-700">GPA 5.0 in both SSC & HSC</span>
                             </div>
-                            <p className="text-sm text-gray-500 mt-2">
-                                Create custom sections for your portfolio. Section names should be lowercase with no spaces.
-                            </p>
+                            <div class="flex items-center">
+                                <i class="fas fa-language text-blue-600 mr-3"></i>
+                                <span class="text-gray-700">IELTS Band 7</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-map-marker-alt text-blue-600 mr-3"></i>
+                                <span class="text-gray-700">Chattogram, Bangladesh</span>
+                            </div>
                         </div>
-                        
-                        <div className="mt-6">
-                            <button
-                                onClick={handleSave}
-                                disabled={saving}
-                                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-                            >
-                                {saving ? 'Saving...' : 'Save Settings'}
-                            </button>
+                    </div>
+                    <div class="fade-in">
+                        <h3 class="text-2xl font-semibold mb-6 text-gray-900">Leadership Roles</h3>
+                        <div class="space-y-4">
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <h4 class="font-semibold text-gray-900">College Leader</h4>
+                                <p class="text-gray-600">Leading student initiatives and academic programs</p>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <h4 class="font-semibold text-gray-900">Vice President - Royal Science Society</h4>
+                                <p class="text-gray-600">Promoting scientific research and innovation</p>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <h4 class="font-semibold text-gray-900">General Secretary - Quiz Club</h4>
+                                <p class="text-gray-600">Organizing knowledge competitions and events</p>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <h4 class="font-semibold text-gray-900">Press & Publication Secretary - BAUJA</h4>
+                                <p class="text-gray-600">Managing communications and publications</p>
+                            </div>
                         </div>
                     </div>
                 </div>
-            );
-        };
+            </div>
+        </section>
 
-        const AdminForm = ({ type, editingItem, onSubmit, onCancel }) => {
-            const [formData, setFormData] = useState({
-                title: editingItem?.title || '',
-                category: editingItem?.category || '',
-                description: editingItem?.description || '',
-                date: editingItem?.date || new Date().toISOString().split('T')[0]
-            });
-            const [image, setImage] = useState(null);
-            const [uploading, setUploading] = useState(false);
-            const [keepExistingImage, setKeepExistingImage] = useState(!!editingItem?.imageUrl);
+        <!-- Achievements Section -->
+        <section id="achievements" class="py-20 bg-gray-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-16 fade-in">
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">Achievements</h2>
+                    <div class="w-24 h-1 bg-blue-600 mx-auto"></div>
+                </div>
+                <div id="achievementsList" class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- Achievements will be loaded from Firebase -->
+                </div>
+            </div>
+        </section>
 
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setUploading(true);
+        <!-- Experience Section -->
+        <section id="experience" class="py-20 bg-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-16 fade-in">
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">Work Experience</h2>
+                    <div class="w-24 h-1 bg-blue-600 mx-auto"></div>
+                </div>
+                <div class="space-y-8">
+                    <div class="fade-in bg-gray-50 p-8 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Private Tutor</h3>
+                        <p class="text-blue-600 mb-4">Mathematics & Science</p>
+                        <p class="text-gray-600">Providing personalized tutoring in mathematics and science subjects to help students achieve academic excellence.</p>
+                    </div>
+                    <div class="fade-in bg-gray-50 p-8 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">OET Invigilator</h3>
+                        <p class="text-blue-600 mb-4">Occupational English Test</p>
+                        <p class="text-gray-600">Supervising and ensuring fair conduct during OET examinations for healthcare professionals.</p>
+                    </div>
+                    <div class="fade-in bg-gray-50 p-8 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">IELTS Instructor</h3>
+                        <p class="text-blue-600 mb-4">English Language Training</p>
+                        <p class="text-gray-600">Teaching IELTS preparation courses and helping students achieve their target band scores.</p>
+                    </div>
+                    <div class="fade-in bg-gray-50 p-8 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Correspondent</h3>
+                        <p class="text-blue-600 mb-4">NTV Online & Kaler Kantho</p>
+                        <p class="text-gray-600">Reporting local news and events for prominent Bangladeshi media outlets.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-                try {
-                    let imageUrl = '';
-                    
-                    // Handle image upload
-                    if (image) {
-                        if (isGitHubConfigured()) {
-                            imageUrl = await uploadImage(image, type);
-                        } else {
-                            // For local storage, convert to base64
-                            const base64 = await fileToBase64(image);
-                            imageUrl = `data:${image.type};base64,${base64}`;
-                        }
-                    } else if (keepExistingImage && editingItem?.imageUrl) {
-                        imageUrl = editingItem.imageUrl;
-                    }
+        <!-- Projects Section -->
+        <section id="projects" class="py-20 bg-gray-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-16 fade-in">
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">Projects</h2>
+                    <div class="w-24 h-1 bg-blue-600 mx-auto"></div>
+                </div>
+                <div id="projectsList" class="grid md:grid-cols-2 gap-8">
+                    <!-- Projects will be loaded from Firebase -->
+                </div>
+            </div>
+        </section>
 
-                    const itemData = {
-                        id: editingItem?.id || Date.now().toString(),
-                        ...formData,
-                        imageUrl,
-                        createdAt: editingItem?.createdAt || new Date().toISOString(),
-                        updatedAt: editingItem ? new Date().toISOString() : undefined
-                    };
+        <!-- Design Portfolio Section -->
+        <section id="portfolio" class="py-20 bg-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-16 fade-in">
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">Design Portfolio</h2>
+                    <div class="w-24 h-1 bg-blue-600 mx-auto"></div>
+                </div>
+                <div id="portfolioGallery" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <!-- Portfolio images will be loaded from Firebase -->
+                </div>
+            </div>
+        </section>
 
-                    const filename = `${type}.json`;
-                    let items = [];
-
-                    if (isGitHubConfigured()) {
-                        // GitHub storage
-                        try {
-                            const { content, sha } = await getFileContent(filename);
-                            items = content ? JSON.parse(content) : [];
-                            
-                            if (editingItem) {
-                                // Update existing item
-                                const index = items.findIndex(item => item.id === editingItem.id);
-                                if (index !== -1) {
-                                    items[index] = itemData;
-                                }
-                            } else {
-                                // Add new item
-                                items.unshift(itemData);
-                            }
-                            
-                            await saveFileContent(filename, JSON.stringify(items, null, 2), sha);
-                        } catch (error) {
-                            throw new Error(`GitHub error: ${error.message}`);
-                        }
-                    } else {
-                        // Local storage fallback
-                        const localData = localStorage.getItem(`fk_sium_${filename}`);
-                        items = localData ? JSON.parse(localData) : [];
-                        
-                        if (editingItem) {
-                            // Update existing item
-                            const index = items.findIndex(item => item.id === editingItem.id);
-                            if (index !== -1) {
-                                items[index] = itemData;
-                            }
-                        } else {
-                            // Add new item
-                            items.unshift(itemData);
-                        }
-                        
-                        localStorage.setItem(`fk_sium_${filename}`, JSON.stringify(items));
-                    }
-
-                    const storageType = isGitHubConfigured() ? 'GitHub' : 'local storage';
-                    const action = editingItem ? 'updated' : 'added';
-                    alert(`${type.slice(0, -1)} ${action} successfully to ${storageType}!`);
-                    onSubmit();
-                } catch (error) {
-                    alert('Error adding item: ' + error.message);
-                } finally {
-                    setUploading(false);
-                }
-            };
-
-            return (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-8 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-                        <h3 className="text-xl font-semibold mb-4">
-                            {editingItem ? 'Edit' : 'Add New'} {type.slice(0, -1)}
-                        </h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <input
-                                type="text"
-                                placeholder="Title"
-                                value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                className="w-full px-4 py-2 border rounded"
-                                required
-                            />
-                            <input
-                                type="text"
-                                placeholder="Category"
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                className="w-full px-4 py-2 border rounded"
-                            />
-                            <textarea
-                                placeholder="Description"
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                className="w-full px-4 py-2 border rounded h-24"
-                                required
-                            />
-                            <input
-                                type="date"
-                                value={formData.date}
-                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                className="w-full px-4 py-2 border rounded"
-                            />
-                            
-                            {/* Image handling */}
-                            {editingItem?.imageUrl && (
-                                <div className="space-y-2">
-                                    <label className="block text-sm font-medium text-gray-700">Current Image:</label>
-                                    <img src={editingItem.imageUrl} alt="Current" className="w-20 h-20 object-cover rounded" />
-                                    <label className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={keepExistingImage}
-                                            onChange={(e) => setKeepExistingImage(e.target.checked)}
-                                            className="mr-2"
-                                        />
-                                        Keep existing image
-                                    </label>
-                                </div>
-                            )}
-                            
+        <!-- Contact Section -->
+        <section id="contact" class="py-20 bg-gray-900 text-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-16 fade-in">
+                    <h2 class="text-4xl font-bold mb-4">Get In Touch</h2>
+                    <div class="w-24 h-1 bg-blue-600 mx-auto"></div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-12">
+                    <div class="fade-in">
+                        <h3 class="text-2xl font-semibold mb-6">Contact Information</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center">
+                                <i class="fas fa-envelope text-blue-400 mr-4"></i>
+                                <span>fazlulkarim.sium@email.com</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-phone text-blue-400 mr-4"></i>
+                                <span>+880 1234 567890</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-map-marker-alt text-blue-400 mr-4"></i>
+                                <span>Chattogram, Bangladesh</span>
+                            </div>
+                        </div>
+                        <div class="mt-8">
+                            <h4 class="text-lg font-semibold mb-4">Follow Me</h4>
+                            <div class="flex space-x-4">
+                                <a href="#" class="text-blue-400 hover:text-blue-300 text-2xl"><i class="fab fa-facebook"></i></a>
+                                <a href="#" class="text-blue-400 hover:text-blue-300 text-2xl"><i class="fab fa-linkedin"></i></a>
+                                <a href="#" class="text-blue-400 hover:text-blue-300 text-2xl"><i class="fab fa-twitter"></i></a>
+                                <a href="#" class="text-blue-400 hover:text-blue-300 text-2xl"><i class="fab fa-instagram"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fade-in">
+                        <form id="contactForm" class="space-y-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    {editingItem?.imageUrl ? 'Replace with new image:' : 'Upload image:'}
-                                </label>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                        setImage(e.target.files[0]);
-                                        if (e.target.files[0]) setKeepExistingImage(false);
-                                    }}
-                                    className="w-full px-4 py-2 border rounded"
-                                />
+                                <input type="text" id="name" placeholder="Your Name" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white">
                             </div>
-                            
-                            <div className="flex space-x-4">
-                                <button
-                                    type="submit"
-                                    disabled={uploading}
-                                    className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                    {uploading ? (editingItem ? 'Updating...' : 'Adding...') : (editingItem ? 'Update Item' : 'Add Item')}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={onCancel}
-                                    className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700"
-                                >
-                                    Cancel
-                                </button>
+                            <div>
+                                <input type="email" id="email" placeholder="Your Email" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white">
                             </div>
+                            <div>
+                                <textarea id="message" rows="5" placeholder="Your Message" class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-white resize-none"></textarea>
+                            </div>
+                            <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                                Send Message
+                            </button>
                         </form>
                     </div>
                 </div>
-            );
-        };
+            </div>
+        </section>
+    </div>
 
-        const AdminPanel = ({ onClose, onLogout }) => {
-            const [activeForm, setActiveForm] = useState(null);
-            const [activeView, setActiveView] = useState('dashboard');
-            const [editingItem, setEditingItem] = useState(null);
-
-            const [sectionSettings, setSectionSettings] = useState({
-                about: { visible: true, title: 'About', order: 1 },
-                achievements: { visible: true, title: 'Achievements', order: 2 },
-                projects: { visible: true, title: 'Projects', order: 3 },
-                content: { visible: true, title: 'Content & Articles', order: 4 },
-                jobs: { visible: true, title: 'Experience', order: 5 },
-                designs: { visible: true, title: 'Design Portfolio', order: 6 },
-                certificates: { visible: true, title: 'Certificates & Training', order: 7 },
-                contact: { visible: true, title: 'Contact', order: 999 } // Always last
-            });
-
-            const collections = [
-                { name: 'achievements', label: 'Achievements', icon: 'fa-trophy' },
-                { name: 'projects', label: 'Projects', icon: 'fa-project-diagram' },
-                { name: 'content', label: 'Content', icon: 'fa-newspaper' },
-                { name: 'jobs', label: 'Experience', icon: 'fa-briefcase' },
-                { name: 'designs', label: 'Designs', icon: 'fa-palette' },
-                { name: 'certificates', label: 'Certificates', icon: 'fa-certificate' }
-            ];
-
-            // Load section settings
-            useEffect(() => {
-                const loadSectionSettings = async () => {
-                    try {
-                        if (isGitHubConfigured()) {
-                            const { content } = await getFileContent('sections.json');
-                            if (content) {
-                                setSectionSettings(prev => ({ ...prev, ...JSON.parse(content) }));
-                            }
-                        } else {
-                            const localData = localStorage.getItem('fk_sium_sections.json');
-                            if (localData) {
-                                setSectionSettings(prev => ({ ...prev, ...JSON.parse(localData) }));
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Error loading section settings:', error);
-                    }
-                };
-                loadSectionSettings();
-            }, []);
-
-            // Get dynamic collections based on section settings
-            const getDynamicCollections = () => {
-                const dynamicCollections = [];
-                Object.entries(sectionSettings).forEach(([sectionName, settings]) => {
-                    if (!['about', 'contact'].includes(sectionName)) {
-                        const existingCollection = collections.find(c => c.name === sectionName);
-                        if (existingCollection) {
-                            dynamicCollections.push(existingCollection);
-                        } else {
-                            // Custom section
-                            dynamicCollections.push({
-                                name: sectionName,
-                                label: settings.title,
-                                icon: 'fa-star'
-                            });
-                        }
-                    }
-                });
-                return dynamicCollections;
-            };
-
-            const handleFormSubmit = () => {
-                setActiveForm(null);
-                setEditingItem(null);
-                // Trigger a page reload to refresh data
-                window.location.reload();
-            };
-
-            return (
-                <div className="min-h-screen bg-gray-100">
-                    <nav className="bg-white shadow-sm p-4">
-                        <div className="flex justify-between items-center">
-                            <h1 className="text-2xl font-bold">FK Sium - Admin Panel</h1>
-                            <div className="space-x-4">
-                                <button
-                                    onClick={onClose}
-                                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                                >
-                                    View Site
-                                </button>
-                                <button
-                                    onClick={onLogout}
-                                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-                                >
-                                    Logout
-                                </button>
-                            </div>
-                        </div>
-                    </nav>
-
-                    <div className="flex">
-                        {/* Sidebar */}
-                        <div className="w-64 bg-white shadow-sm min-h-screen">
-                            <div className="p-4">
-                                <button
-                                    onClick={() => setActiveView('dashboard')}
-                                    className={`w-full text-left p-3 rounded mb-2 ${activeView === 'dashboard' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-                                >
-                                    <i className="fas fa-tachometer-alt mr-3"></i>Dashboard
-                                </button>
-                                <button
-                                    onClick={() => setActiveView('profile')}
-                                    className={`w-full text-left p-3 rounded mb-2 ${activeView === 'profile' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-                                >
-                                    <i className="fas fa-user-circle mr-3"></i>Profile Settings
-                                </button>
-                                <button
-                                    onClick={() => setActiveView('sections')}
-                                    className={`w-full text-left p-3 rounded mb-2 ${activeView === 'sections' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-                                >
-                                    <i className="fas fa-cog mr-3"></i>Section Settings
-                                </button>
-                                <hr className="my-4" />
-                                {getDynamicCollections().map((collection) => (
-                                    <button
-                                        key={collection.name}
-                                        onClick={() => setActiveView(collection.name)}
-                                        className={`w-full text-left p-3 rounded mb-2 ${activeView === collection.name ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-                                    >
-                                        <i className={`fas ${collection.icon} mr-3`}></i>
-                                        Manage {collection.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Main Content */}
-                        <div className="flex-1 p-6">
-                            {activeView === 'dashboard' ? (
-                                <div>
-                                    <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
-                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                                        {getDynamicCollections().map((collection) => (
-                                            <button
-                                                key={collection.name}
-                                                onClick={() => setActiveForm(collection.name)}
-                                                className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow text-center"
-                                            >
-                                                <i className={`fas ${collection.icon} text-3xl text-blue-600 mb-4`}></i>
-                                                <h3 className="text-lg font-semibold">Add {collection.label}</h3>
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    <div className="mt-8 bg-white p-6 rounded-lg shadow">
-                                        <h3 className="text-lg font-semibold mb-4">
-                                            {isGitHubConfigured() ? 'GitHub Repository Structure' : 'Setup Instructions'}
-                                        </h3>
-                                        
-                                        {isGitHubConfigured() ? (
-                                            <div className="bg-gray-100 p-4 rounded font-mono text-sm">
-                                                <div>📁 {GITHUB_CONFIG.repo}/</div>
-                                                <div>├── achievements.json</div>
-                                                <div>├── projects.json</div>
-                                                <div>├── designs.json</div>
-                                                <div>├── certificates.json</div>
-                                                <div>└── 📁 images/</div>
-                                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── achievements/</div>
-                                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── projects/</div>
-                                                <div>&nbsp;&nbsp;&nbsp;&nbsp;├── designs/</div>
-                                                <div>&nbsp;&nbsp;&nbsp;&nbsp;└── certificates/</div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded">
-                                                    <h4 className="font-semibold text-yellow-800 mb-2">Currently using Local Storage</h4>
-                                                    <p className="text-yellow-700 text-sm">
-                                                        Your data is being saved locally in your browser. To enable GitHub storage and sync across devices:
-                                                    </p>
-                                                </div>
-                                                
-                                                <div className="bg-gray-50 p-4 rounded">
-                                                    <h4 className="font-semibold mb-2">Setup GitHub Integration:</h4>
-                                                    <ol className="list-decimal list-inside space-y-2 text-sm">
-                                                        <li>Create a new GitHub repository named "fk-sium-portfolio-data"</li>
-                                                        <li>Generate a Personal Access Token with "repo" permissions</li>
-                                                        <li>Update the GITHUB_CONFIG in the code with your details</li>
-                                                        <li>Your data will automatically sync to GitHub</li>
-                                                    </ol>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : activeView === 'profile' ? (
-                                <ProfileSettings />
-                            ) : activeView === 'sections' ? (
-                                <SectionSettings />
-                            ) : (
-                                <ContentManager 
-                                    type={activeView} 
-                                    onEdit={(item) => {
-                                        setEditingItem(item);
-                                        setActiveForm(activeView);
-                                    }}
-                                    onAdd={() => {
-                                        setEditingItem(null);
-                                        setActiveForm(activeView);
-                                    }}
-                                />
-                            )}
-                        </div>
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="admin-panel min-h-screen bg-gray-100">
+        <!-- Login Form -->
+        <div id="loginForm" class="min-h-screen flex items-center justify-center">
+            <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+                <h2 class="text-2xl font-bold text-center mb-6">Admin Login</h2>
+                <form id="adminLoginForm">
+                    <div class="mb-4">
+                        <input type="email" id="adminEmail" placeholder="Email" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500">
                     </div>
+                    <div class="mb-6">
+                        <input type="password" id="adminPassword" placeholder="Password" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors">
+                        Login
+                    </button>
+                </form>
+                <button id="backToSite" class="w-full mt-4 bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                    Back to Site
+                </button>
+            </div>
+        </div>
 
-                    {activeForm && (
-                        <AdminForm
-                            type={activeForm}
-                            editingItem={editingItem}
-                            onSubmit={handleFormSubmit}
-                            onCancel={() => {
-                                setActiveForm(null);
-                                setEditingItem(null);
-                            }}
-                        />
-                    )}
+        <!-- Admin Dashboard -->
+        <div id="adminDashboard" class="hidden">
+            <nav class="bg-white shadow-sm p-4">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold">Admin Dashboard</h1>
+                    <div class="space-x-4">
+                        <button id="viewSiteBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">View Site</button>
+                        <button id="logoutBtn" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</button>
+                    </div>
                 </div>
-            );
+            </nav>
+
+            <div class="p-6">
+                <div class="grid md:grid-cols-3 gap-6 mb-8">
+                    <button id="manageAchievements" class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow">
+                        <i class="fas fa-trophy text-3xl text-yellow-500 mb-4"></i>
+                        <h3 class="text-lg font-semibold">Manage Achievements</h3>
+                    </button>
+                    <button id="manageProjects" class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow">
+                        <i class="fas fa-project-diagram text-3xl text-green-500 mb-4"></i>
+                        <h3 class="text-lg font-semibold">Manage Projects</h3>
+                    </button>
+                    <button id="managePortfolio" class="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow">
+                        <i class="fas fa-images text-3xl text-purple-500 mb-4"></i>
+                        <h3 class="text-lg font-semibold">Manage Portfolio</h3>
+                    </button>
+                </div>
+
+                <!-- Content Management Sections -->
+                <div id="achievementsManager" class="hidden bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-xl font-semibold mb-4">Manage Achievements</h3>
+                    <form id="achievementForm" class="mb-6">
+                        <div class="grid md:grid-cols-2 gap-4 mb-4">
+                            <input type="text" id="achievementTitle" placeholder="Achievement Title" class="px-4 py-2 border rounded">
+                            <input type="text" id="achievementCategory" placeholder="Category" class="px-4 py-2 border rounded">
+                        </div>
+                        <textarea id="achievementDescription" placeholder="Description" class="w-full px-4 py-2 border rounded mb-4"></textarea>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Add Achievement</button>
+                    </form>
+                    <div id="achievementsList-admin" class="space-y-4"></div>
+                </div>
+
+                <div id="projectsManager" class="hidden bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-xl font-semibold mb-4">Manage Projects</h3>
+                    <form id="projectForm" class="mb-6">
+                        <div class="grid md:grid-cols-2 gap-4 mb-4">
+                            <input type="text" id="projectTitle" placeholder="Project Title" class="px-4 py-2 border rounded">
+                            <input type="text" id="projectCategory" placeholder="Category" class="px-4 py-2 border rounded">
+                        </div>
+                        <textarea id="projectDescription" placeholder="Description" class="w-full px-4 py-2 border rounded mb-4"></textarea>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Add Project</button>
+                    </form>
+                    <div id="projectsList-admin" class="space-y-4"></div>
+                </div>
+
+                <div id="portfolioManager" class="hidden bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-xl font-semibold mb-4">Manage Portfolio</h3>
+                    <form id="portfolioForm" class="mb-6">
+                        <div class="mb-4">
+                            <input type="file" id="portfolioImage" accept="image/*" class="px-4 py-2 border rounded w-full">
+                        </div>
+                        <input type="text" id="portfolioTitle" placeholder="Image Title" class="px-4 py-2 border rounded mb-4 w-full">
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Upload Image</button>
+                    </form>
+                    <div id="portfolioList-admin" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="lightbox">
+        <span class="close">&times;</span>
+        <img class="lightbox-content" id="lightboxImg">
+    </div>
+
+    <script>
+        // Firebase Configuration (Replace with your config)
+        const firebaseConfig = {
+            apiKey: "your-api-key",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id"
         };
 
-        const App = () => {
-            const { user, login, logout } = useAuth();
-            const [showAdmin, setShowAdmin] = useState(false);
-            const [showLogin, setShowLogin] = useState(false);
-            const [sectionSettings, setSectionSettings] = useState({
-                about: { visible: true, title: 'About', order: 1 },
-                achievements: { visible: true, title: 'Achievements', order: 2 },
-                projects: { visible: true, title: 'Projects', order: 3 },
-                content: { visible: true, title: 'Content & Articles', order: 4 },
-                jobs: { visible: true, title: 'Experience', order: 5 },
-                designs: { visible: true, title: 'Design Portfolio', order: 6 },
-                certificates: { visible: true, title: 'Certificates & Training', order: 7 },
-                contact: { visible: true, title: 'Contact', order: 999 } // Always last
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const storage = firebase.storage();
+
+        // Global variables
+        let currentUser = null;
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            setupEventListeners();
+            loadPublicContent();
+        });
+
+        function initializeApp() {
+            // Check authentication state
+            auth.onAuthStateChanged(user => {
+                currentUser = user;
+                if (user && document.getElementById('adminPanel').style.display !== 'none') {
+                    showAdminDashboard();
+                }
             });
 
-            // Default data for when GitHub files don't exist yet
-            const defaultAchievements = [
-                {
-                    id: '1',
-                    title: 'Champion - Bangladesh Mathematical Olympiad',
-                    category: 'Regional Level',
-                    description: 'First place in regional mathematics competition',
-                    date: '2023-01-15'
-                },
-                {
-                    id: '2',
-                    title: 'National Runner-Up - Newspaper Olympiad',
-                    category: 'National Level',
-                    description: 'Second place in national newspaper olympiad',
-                    date: '2023-03-20'
-                },
-                {
-                    id: '3',
-                    title: '2nd Place - National Children\'s Islamic Cultural Competition',
-                    category: 'National Level',
-                    description: 'Outstanding performance in national cultural competition',
-                    date: '2023-05-10'
-                },
-                {
-                    id: '4',
-                    title: 'Best Trainee Award',
-                    category: 'Agri-Business Marketing & Journalism',
-                    description: 'Recognized for excellence in training program',
-                    date: '2023-07-25'
-                }
-            ];
-
-            const defaultProjects = [
-                {
-                    id: '1',
-                    title: 'স্বাধীন বাংলা BioTrace',
-                    category: 'Innovation Project',
-                    description: 'Innovative biotechnology project focused on environmental solutions and sustainable development.',
-                    date: '2023-06-15'
-                }
-            ];
-
-            const defaultContent = [
-                {
-                    id: '1',
-                    title: 'Digital Journalism in Modern Bangladesh',
-                    category: 'Journalism',
-                    description: 'Exploring the evolution of digital media and its impact on contemporary journalism practices in Bangladesh.',
-                    date: '2023-08-15'
-                },
-                {
-                    id: '2',
-                    title: 'Youth Leadership in Community Development',
-                    category: 'Leadership',
-                    description: 'Analysis of how young leaders can drive meaningful change in their communities through innovative approaches.',
-                    date: '2023-09-10'
-                }
-            ];
-
-            const defaultJobs = [
-                {
-                    id: '1',
-                    title: 'Correspondent',
-                    category: 'NTV Online',
-                    description: 'Reporting on local news, conducting interviews, and creating digital content for one of Bangladesh\'s leading news platforms.',
-                    date: '2023-01-01'
-                },
-                {
-                    id: '2',
-                    title: 'Correspondent',
-                    category: 'Kaler Kantho',
-                    description: 'Contributing journalist covering community events, social issues, and educational developments.',
-                    date: '2023-03-01'
-                },
-                {
-                    id: '3',
-                    title: 'Student Leader',
-                    category: 'Various Organizations',
-                    description: 'Leading student initiatives, organizing events, and representing student interests in multiple educational and social organizations.',
-                    date: '2022-09-01'
-                }
-            ];
-
-            const defaultCertificates = [
-                {
-                    id: '1',
-                    title: 'Management Learning',
-                    category: '10 Minute School',
-                    description: 'Comprehensive management and leadership training program',
-                    date: '2023-02-10'
-                },
-                {
-                    id: '2',
-                    title: 'Digital Journalism',
-                    category: 'Reuters',
-                    description: 'Professional digital journalism and media training',
-                    date: '2023-04-18'
-                },
-                {
-                    id: '3',
-                    title: 'Mobile Journalism',
-                    category: 'Press Institute Bangladesh',
-                    description: 'Mobile journalism techniques and best practices',
-                    date: '2023-06-22'
-                },
-                {
-                    id: '4',
-                    title: 'Agri-Business Marketing & Social Media Journalism',
-                    category: 'Professional Training',
-                    description: 'Specialized training in agricultural business marketing and social media journalism',
-                    date: '2023-08-05'
-                },
-                {
-                    id: '5',
-                    title: 'Draw Your Dream Workshop',
-                    category: 'Creative Development',
-                    description: 'Creative workshop focused on visualization and goal setting',
-                    date: '2023-09-12'
-                },
-                {
-                    id: '6',
-                    title: 'Follow Your Dream Workshop',
-                    category: 'Personal Development',
-                    description: 'Personal development workshop on achieving life goals',
-                    date: '2023-10-08'
-                }
-            ];
-
-            // Load section settings
-            useEffect(() => {
-                const loadSectionSettings = async () => {
-                    try {
-                        if (isGitHubConfigured()) {
-                            const { content } = await getFileContent('sections.json');
-                            if (content) {
-                                setSectionSettings(prev => ({ ...prev, ...JSON.parse(content) }));
-                            }
-                        } else {
-                            const localData = localStorage.getItem('fk_sium_sections.json');
-                            if (localData) {
-                                setSectionSettings(prev => ({ ...prev, ...JSON.parse(localData) }));
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Error loading section settings:', error);
+            // Initialize animations
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
                     }
-                };
-                loadSectionSettings();
-            }, []);
+                });
+            });
 
-            useEffect(() => {
-                // Initialize fade-in animations
-                const observer = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting) {
-                            entry.target.classList.add('visible');
+            document.querySelectorAll('.fade-in').forEach(el => {
+                observer.observe(el);
+            });
+        }
+
+        function setupEventListeners() {
+            // Navigation
+            document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileMenu);
+            document.getElementById('adminBtn').addEventListener('click', showAdminPanel);
+            document.getElementById('backToSite').addEventListener('click', showPublicSite);
+            document.getElementById('viewSiteBtn').addEventListener('click', showPublicSite);
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+
+            // Admin login
+            document.getElementById('adminLoginForm').addEventListener('submit', handleAdminLogin);
+
+            // Admin management
+            document.getElementById('manageAchievements').addEventListener('click', () => showManager('achievements'));
+            document.getElementById('manageProjects').addEventListener('click', () => showManager('projects'));
+            document.getElementById('managePortfolio').addEventListener('click', () => showManager('portfolio'));
+
+            // Forms
+            document.getElementById('achievementForm').addEventListener('submit', handleAchievementSubmit);
+            document.getElementById('projectForm').addEventListener('submit', handleProjectSubmit);
+            document.getElementById('portfolioForm').addEventListener('submit', handlePortfolioSubmit);
+            document.getElementById('contactForm').addEventListener('submit', handleContactSubmit);
+
+            // Lightbox
+            document.getElementById('lightbox').addEventListener('click', closeLightbox);
+            document.querySelector('.close').addEventListener('click', closeLightbox);
+
+            // Smooth scrolling for navigation links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
+            });
+        }
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            menu.classList.toggle('hidden');
+        }
+
+        function showAdminPanel() {
+            document.getElementById('publicSite').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'block';
+            if (currentUser) {
+                showAdminDashboard();
+            }
+        }
+
+        function showPublicSite() {
+            document.getElementById('publicSite').style.display = 'block';
+            document.getElementById('adminPanel').style.display = 'none';
+        }
+
+        function showAdminDashboard() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('adminDashboard').classList.remove('hidden');
+            loadAdminContent();
+        }
+
+        async function handleAdminLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                showAdminDashboard();
+            } catch (error) {
+                alert('Login failed: ' + error.message);
+            }
+        }
+
+        async function logout() {
+            try {
+                await auth.signOut();
+                document.getElementById('loginForm').style.display = 'flex';
+                document.getElementById('adminDashboard').classList.add('hidden');
+                showPublicSite();
+            } catch (error) {
+                alert('Logout failed: ' + error.message);
+            }
+        }
+
+        function showManager(type) {
+            // Hide all managers
+            document.getElementById('achievementsManager').classList.add('hidden');
+            document.getElementById('projectsManager').classList.add('hidden');
+            document.getElementById('portfolioManager').classList.add('hidden');
+
+            // Show selected manager
+            document.getElementById(type + 'Manager').classList.remove('hidden');
+        }
+
+        async function loadPublicContent() {
+            await loadAchievements();
+            await loadProjects();
+            await loadPortfolio();
+        }
+
+        async function loadAdminContent() {
+            await loadAchievementsAdmin();
+            await loadProjectsAdmin();
+            await loadPortfolioAdmin();
+        }
+
+        async function loadAchievements() {
+            try {
+                const snapshot = await db.collection('achievements').orderBy('createdAt', 'desc').get();
+                const container = document.getElementById('achievementsList');
+                container.innerHTML = '';
+
+                if (snapshot.empty) {
+                    // Default achievements
+                    const defaultAchievements = [
+                        {
+                            title: 'Bangladesh Mathematics Olympiad Champion',
+                            category: 'Regional Level',
+                            description: 'First place in regional mathematics competition'
+                        },
+                        {
+                            title: 'Newspaper Olympiad National Runner-up',
+                            category: 'National Level',
+                            description: 'Second place in national newspaper olympiad'
+                        },
+                        {
+                            title: 'Ministry of Religious Affairs Competition',
+                            category: '2nd Place - Chattogram Division',
+                            description: 'Outstanding performance in divisional competition'
                         }
+                    ];
+
+                    defaultAchievements.forEach(achievement => {
+                        const achievementCard = createAchievementCard(achievement);
+                        container.appendChild(achievementCard);
                     });
-                });
-
-                document.querySelectorAll('.fade-in').forEach(el => {
-                    observer.observe(el);
-                });
-
-                return () => observer.disconnect();
-            }, []);
-
-            const handleAdminClick = () => {
-                if (user?.isAdmin) {
-                    setShowAdmin(true);
                 } else {
-                    setShowLogin(true);
+                    snapshot.forEach(doc => {
+                        const achievement = doc.data();
+                        const achievementCard = createAchievementCard(achievement);
+                        container.appendChild(achievementCard);
+                    });
                 }
-            };
+            } catch (error) {
+                console.error('Error loading achievements:', error);
+            }
+        }
 
-            const handleLogin = async (input) => {
-                const success = await login(input);
-                if (success) {
-                    setShowLogin(false);
-                    setShowAdmin(true);
+        function createAchievementCard(achievement) {
+            const card = document.createElement('div');
+            card.className = 'bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow fade-in';
+            card.innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-trophy text-4xl text-yellow-500 mb-4"></i>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">${achievement.title}</h3>
+                    <p class="text-blue-600 mb-3">${achievement.category}</p>
+                    <p class="text-gray-600">${achievement.description}</p>
+                </div>
+            `;
+            return card;
+        }
+
+        async function loadProjects() {
+            try {
+                const snapshot = await db.collection('projects').orderBy('createdAt', 'desc').get();
+                const container = document.getElementById('projectsList');
+                container.innerHTML = '';
+
+                if (snapshot.empty) {
+                    // Default projects
+                    const defaultProjects = [
+                        {
+                            title: 'Quizzical Trivia 1.0',
+                            category: 'Leadership Project',
+                            description: 'Led the development and organization of an interactive trivia platform for educational purposes.'
+                        },
+                        {
+                            title: 'Econest Sound Production',
+                            category: 'Innovation',
+                            description: 'Developed innovative ideas for sustainable sound production and environmental conservation.'
+                        }
+                    ];
+
+                    defaultProjects.forEach(project => {
+                        const projectCard = createProjectCard(project);
+                        container.appendChild(projectCard);
+                    });
+                } else {
+                    snapshot.forEach(doc => {
+                        const project = doc.data();
+                        const projectCard = createProjectCard(project);
+                        container.appendChild(projectCard);
+                    });
                 }
-                return success;
-            };
+            } catch (error) {
+                console.error('Error loading projects:', error);
+            }
+        }
 
-            const handleLogout = () => {
-                logout();
-                setShowAdmin(false);
-            };
+        function createProjectCard(project) {
+            const card = document.createElement('div');
+            card.className = 'bg-white p-8 rounded-lg shadow-lg hover:shadow-xl transition-shadow fade-in';
+            card.innerHTML = `
+                <div class="flex items-start">
+                    <i class="fas fa-project-diagram text-3xl text-blue-600 mr-4 mt-1"></i>
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">${project.title}</h3>
+                        <p class="text-blue-600 mb-3">${project.category}</p>
+                        <p class="text-gray-600">${project.description}</p>
+                    </div>
+                </div>
+            `;
+            return card;
+        }
 
-            if (showAdmin && user?.isAdmin) {
-                return <AdminPanel onClose={() => setShowAdmin(false)} onLogout={handleLogout} />;
+        async function loadPortfolio() {
+            try {
+                const snapshot = await db.collection('portfolio').orderBy('createdAt', 'desc').get();
+                const container = document.getElementById('portfolioGallery');
+                container.innerHTML = '';
+
+                if (snapshot.empty) {
+                    // Default placeholder
+                    for (let i = 1; i <= 8; i++) {
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'aspect-square bg-gray-200 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-300 transition-colors';
+                        placeholder.innerHTML = `<i class="fas fa-image text-gray-400 text-2xl"></i>`;
+                        container.appendChild(placeholder);
+                    }
+                } else {
+                    snapshot.forEach(doc => {
+                        const item = doc.data();
+                        const imageElement = createPortfolioImage(item);
+                        container.appendChild(imageElement);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading portfolio:', error);
+            }
+        }
+
+        function createPortfolioImage(item) {
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity';
+            imageContainer.innerHTML = `<img src="${item.url}" alt="${item.title}" class="w-full h-full object-cover">`;
+            imageContainer.addEventListener('click', () => openLightbox(item.url));
+            return imageContainer;
+        }
+
+        function openLightbox(src) {
+            document.getElementById('lightboxImg').src = src;
+            document.getElementById('lightbox').style.display = 'block';
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').style.display = 'none';
+        }
+
+        async function handleAchievementSubmit(e) {
+            e.preventDefault();
+            const title = document.getElementById('achievementTitle').value;
+            const category = document.getElementById('achievementCategory').value;
+            const description = document.getElementById('achievementDescription').value;
+
+            try {
+                await db.collection('achievements').add({
+                    title,
+                    category,
+                    description,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Clear form
+                document.getElementById('achievementForm').reset();
+                
+                // Reload content
+                await loadAchievements();
+                await loadAchievementsAdmin();
+                
+                alert('Achievement added successfully!');
+            } catch (error) {
+                alert('Error adding achievement: ' + error.message);
+            }
+        }
+
+        async function handleProjectSubmit(e) {
+            e.preventDefault();
+            const title = document.getElementById('projectTitle').value;
+            const category = document.getElementById('projectCategory').value;
+            const description = document.getElementById('projectDescription').value;
+
+            try {
+                await db.collection('projects').add({
+                    title,
+                    category,
+                    description,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Clear form
+                document.getElementById('projectForm').reset();
+                
+                // Reload content
+                await loadProjects();
+                await loadProjectsAdmin();
+                
+                alert('Project added successfully!');
+            } catch (error) {
+                alert('Error adding project: ' + error.message);
+            }
+        }
+
+        async function handlePortfolioSubmit(e) {
+            e.preventDefault();
+            const file = document.getElementById('portfolioImage').files[0];
+            const title = document.getElementById('portfolioTitle').value;
+
+            if (!file) {
+                alert('Please select an image');
+                return;
             }
 
-            // Function to render sections dynamically
-            const renderSection = (sectionName, settings) => {
-                if (!settings.visible) return null;
+            try {
+                // Upload image to Firebase Storage
+                const storageRef = storage.ref(`portfolio/${Date.now()}_${file.name}`);
+                const snapshot = await storageRef.put(file);
+                const url = await snapshot.ref.getDownloadURL();
 
-                // Special handling for built-in sections
-                if (sectionName === 'about') {
-                    return <About key={sectionName} />;
-                }
-                if (sectionName === 'contact') {
-                    return <Contact key={sectionName} />;
-                }
-                if (sectionName === 'designs') {
-                    return <DesignPortfolio key={sectionName} />;
-                }
+                // Save to Firestore
+                await db.collection('portfolio').add({
+                    title,
+                    url,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
 
-                // Default data for different section types
-                const getDefaultData = (sectionName) => {
-                    switch (sectionName) {
-                        case 'achievements': return defaultAchievements;
-                        case 'projects': return defaultProjects;
-                        case 'content': return defaultContent;
-                        case 'jobs': return defaultJobs;
-                        case 'certificates': return defaultCertificates;
-                        default: return [];
-                    }
-                };
+                // Clear form
+                document.getElementById('portfolioForm').reset();
+                
+                // Reload content
+                await loadPortfolio();
+                await loadPortfolioAdmin();
+                
+                alert('Image uploaded successfully!');
+            } catch (error) {
+                alert('Error uploading image: ' + error.message);
+            }
+        }
 
-                // Default icons for different section types
-                const getIcon = (sectionName) => {
-                    switch (sectionName) {
-                        case 'achievements': return 'fa-trophy';
-                        case 'projects': return 'fa-project-diagram';
-                        case 'content': return 'fa-newspaper';
-                        case 'jobs': return 'fa-briefcase';
-                        case 'certificates': return 'fa-certificate';
-                        case 'skills': return 'fa-cogs';
-                        case 'education': return 'fa-graduation-cap';
-                        case 'testimonials': return 'fa-quote-left';
-                        case 'awards': return 'fa-medal';
-                        case 'volunteer': return 'fa-hands-helping';
-                        default: return 'fa-star';
-                    }
-                };
+        async function loadAchievementsAdmin() {
+            try {
+                const snapshot = await db.collection('achievements').orderBy('createdAt', 'desc').get();
+                const container = document.getElementById('achievementsList-admin');
+                container.innerHTML = '';
 
-                return (
-                    <ContentSection 
-                        key={sectionName}
-                        id={sectionName}
-                        title={settings.title}
-                        filename={`${sectionName}.json`}
-                        icon={getIcon(sectionName)}
-                        defaultData={getDefaultData(sectionName)}
-                    />
-                );
-            };
-
-            return (
-                <div className="smooth-scroll">
-                    <Navigation user={user} onAdminClick={handleAdminClick} sectionSettings={sectionSettings} />
-                    <Hero />
-                    
-                    {/* Render sections dynamically based on settings and order */}
-                    {Object.entries(sectionSettings)
-                        .sort(([,a], [,b]) => a.order - b.order)
-                        .map(([sectionName, settings]) => 
-                            renderSection(sectionName, settings)
-                        )}
-                    
-                    {/* Storage Status */}
-                    <div className="github-status">
-                        <div className={`${isGitHubConfigured() ? 'bg-green-500' : 'bg-yellow-500'} text-white px-3 py-1 rounded text-sm`}>
-                            {isGitHubConfigured() ? 'GitHub Connected' : 'Local Storage Mode'}
+                snapshot.forEach(doc => {
+                    const achievement = doc.data();
+                    const item = document.createElement('div');
+                    item.className = 'bg-gray-50 p-4 rounded flex justify-between items-center';
+                    item.innerHTML = `
+                        <div>
+                            <h4 class="font-semibold">${achievement.title}</h4>
+                            <p class="text-sm text-gray-600">${achievement.category}</p>
                         </div>
-                    </div>
+                        <button onclick="deleteAchievement('${doc.id}')" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Delete</button>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error loading admin achievements:', error);
+            }
+        }
 
-                    {showLogin && (
-                        <AdminLogin 
-                            onLogin={handleLogin} 
-                            onCancel={() => setShowLogin(false)} 
-                        />
-                    )}
-                </div>
-            );
-        };
+        async function loadProjectsAdmin() {
+            try {
+                const snapshot = await db.collection('projects').orderBy('createdAt', 'desc').get();
+                const container = document.getElementById('projectsList-admin');
+                container.innerHTML = '';
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+                snapshot.forEach(doc => {
+                    const project = doc.data();
+                    const item = document.createElement('div');
+                    item.className = 'bg-gray-50 p-4 rounded flex justify-between items-center';
+                    item.innerHTML = `
+                        <div>
+                            <h4 class="font-semibold">${project.title}</h4>
+                            <p class="text-sm text-gray-600">${project.category}</p>
+                        </div>
+                        <button onclick="deleteProject('${doc.id}')" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Delete</button>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error loading admin projects:', error);
+            }
+        }
+
+        async function loadPortfolioAdmin() {
+            try {
+                const snapshot = await db.collection('portfolio').orderBy('createdAt', 'desc').get();
+                const container = document.getElementById('portfolioList-admin');
+                container.innerHTML = '';
+
+                snapshot.forEach(doc => {
+                    const item = doc.data();
+                    const element = document.createElement('div');
+                    element.className = 'relative group';
+                    element.innerHTML = `
+                        <img src="${item.url}" alt="${item.title}" class="w-full aspect-square object-cover rounded">
+                        <button onclick="deletePortfolioItem('${doc.id}', '${item.url}')" class="absolute top-2 right-2 bg-red-500 text-white p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i class="fas fa-trash text-sm"></i>
+                        </button>
+                    `;
+                    container.appendChild(element);
+                });
+            } catch (error) {
+                console.error('Error loading admin portfolio:', error);
+            }
+        }
+
+        async function deleteAchievement(id) {
+            if (confirm('Are you sure you want to delete this achievement?')) {
+                try {
+                    await db.collection('achievements').doc(id).delete();
+                    await loadAchievements();
+                    await loadAchievementsAdmin();
+                    alert('Achievement deleted successfully!');
+                } catch (error) {
+                    alert('Error deleting achievement: ' + error.message);
+                }
+            }
+        }
+
+        async function deleteProject(id) {
+            if (confirm('Are you sure you want to delete this project?')) {
+                try {
+                    await db.collection('projects').doc(id).delete();
+                    await loadProjects();
+                    await loadProjectsAdmin();
+                    alert('Project deleted successfully!');
+                } catch (error) {
+                    alert('Error deleting project: ' + error.message);
+                }
+            }
+        }
+
+        async function deletePortfolioItem(id, url) {
+            if (confirm('Are you sure you want to delete this image?')) {
+                try {
+                    // Delete from Firestore
+                    await db.collection('portfolio').doc(id).delete();
+                    
+                    // Delete from Storage
+                    const storageRef = storage.refFromURL(url);
+                    await storageRef.delete();
+                    
+                    await loadPortfolio();
+                    await loadPortfolioAdmin();
+                    alert('Image deleted successfully!');
+                } catch (error) {
+                    alert('Error deleting image: ' + error.message);
+                }
+            }
+        }
+
+        function handleContactSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const message = document.getElementById('message').value;
+
+            // In a real application, you would send this to a backend service
+            alert(`Thank you ${name}! Your message has been received. I'll get back to you soon.`);
+            document.getElementById('contactForm').reset();
+        }
+
+        // Make functions global for onclick handlers
+        window.deleteAchievement = deleteAchievement;
+        window.deleteProject = deleteProject;
+        window.deletePortfolioItem = deletePortfolioItem;
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f2e33d040981d8',t:'MTc1NTIwMDA0Ni4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96f6a9ee44929d24',t:'MTc1NTIzOTY0Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
